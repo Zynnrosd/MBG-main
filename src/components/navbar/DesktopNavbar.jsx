@@ -1,4 +1,4 @@
-import { Calculator, Calendar, MessageCircle, BookOpen } from 'lucide-react';
+import { Calculator, Calendar, MessageCircle, BookOpen, LogIn } from 'lucide-react';
 import logoUrl from '../../assets/LOGORN.png'; 
 
 export default function DesktopNavbar({ currentPage, onNavigate }) {
@@ -6,7 +6,8 @@ export default function DesktopNavbar({ currentPage, onNavigate }) {
     { id: 'recommendation', label: 'Rekomendasi', icon: Calculator },
     { id: 'schedule', label: 'Jadwal', icon: Calendar },
     { id: 'consultation', label: 'Konsultasi', icon: MessageCircle },
-    { id: 'education', label: 'Edukasi', icon: BookOpen }
+    { id: 'education', label: 'Edukasi', icon: BookOpen },
+    { id: 'login', label: 'Login', icon: LogIn } // Item baru ditambahkan di sini
   ];
 
   return (
