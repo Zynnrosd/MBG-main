@@ -19,7 +19,7 @@ export default function Footer({ fadeOut, fadeIn }) {
         </div>
         
         <p className="text-slate-500 text-xs xs:text-sm font-medium tracking-wide xs:tracking-widest mb-1.5 sm:mb-2 transform transition-all duration-500 hover:text-slate-600 hover:tracking-wider px-2">
-          Versi 1.0 - © 2026 MBG Nutrition Support
+          Versi 1.0 - © 2026 Sistem Informasi Gizi Anak dan Ibu Terpadu
         </p>
         
         <div className="w-12 sm:w-16 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent mx-auto rounded-full animate-pulse opacity-80" />

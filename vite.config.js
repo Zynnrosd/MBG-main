@@ -20,7 +20,7 @@ export default defineConfig({
       manifest: {
         name: 'SIGAP Gizi',
         short_name: 'SIGAP Gizi',
-        description: 'Sistem Informasi Gizi Anak Pintar',
+        description: 'Sistem Informasi Gizi Anak dan Ibu Terpadu',
         theme_color: '#2563eb',
         background_color: '#ffffff',
         display: 'standalone',

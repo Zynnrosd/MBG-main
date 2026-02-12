@@ -3,7 +3,7 @@
   "private": true,
   "version": "2.0.0",
   "type": "module",
-  "description": "Sistem Informasi Gizi Anak Pintar - PWA Application",
+  "description": "Sistem Informasi Gizi Anak dan Ibu Terpadu - PWA Application",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

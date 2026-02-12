@@ -1,7 +1,6 @@
-// src/pages/admin/LoginPage.jsx
 import { useState } from 'react';
 import { Lock, Mail, Shield, AlertCircle } from 'lucide-react';
-import { signIn } from '../../config/supabase';
+import { signIn, supabase } from '../../config/supabase';
 
 export default function LoginPage({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -15,18 +14,59 @@ export default function LoginPage({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const { data, error } = await signIn(email, password);
+      // 1. Sign In ke Supabase Auth
+      const { data: authData, error: authError } = await signIn(email, password);
       
-      if (error) {
-        setError(error.message);
-        return;
+      if (authError) {
+        throw new Error(authError.message === 'Invalid login credentials' 
+          ? 'Email atau password salah.' 
+          : 'Terjadi kesalahan autentikasi.');
       }
 
-      if (data.user) {
-        onLoginSuccess(data.user);
+      if (authData.user) {
+        // 2. Cek Peran Pengguna (Admin vs Dietisien)
+        
+        // A. Cek Tabel Admins
+        const { data: adminData } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (adminData) {
+          // GABUNGKAN data auth dengan data profil admin
+          const fullAdminProfile = { ...authData.user, ...adminData };
+          onLoginSuccess(fullAdminProfile, 'admin'); 
+          return;
+        }
+
+        // B. Cek Tabel Doctors (Dietisien)
+        const { data: doctorData } = await supabase
+          .from('doctors')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (doctorData) {
+          // Cek status aktif dietisien
+          if (!doctorData.is_active) {
+             throw new Error('Akun Anda dinonaktifkan. Hubungi admin.');
+          }
+          // PENTING: Gunakan ID dari tabel doctors, bukan Auth ID, agar chat sinkron
+          const fullDoctorProfile = { ...authData.user, ...doctorData, id: doctorData.id }; 
+          
+          onLoginSuccess(fullDoctorProfile, 'persagi'); 
+          return;
+        }
+
+        // C. Jika user ada di Auth tapi tidak di kedua tabel
+        throw new Error('Akun tidak memiliki akses ke dashboard ini.');
       }
     } catch (err) {
-      setError('Terjadi kesalahan saat login');
+      console.error("Login Error:", err);
+      setError(err.message);
+      // Logout jika gagal validasi role agar sesi bersih
+      await supabase.auth.signOut();
     } finally {
       setLoading(false);
     }

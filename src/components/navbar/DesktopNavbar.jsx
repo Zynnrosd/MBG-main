@@ -31,7 +31,7 @@ export default function DesktopNavbar({ currentPage, onNavigate }) {
                 SIGAP Gizi
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                Sistem Informasi Gizi Pintar
+                Sistem Informasi Gizi Anak dan Ibu Terpadu
               </p>
             </div>
           </div>

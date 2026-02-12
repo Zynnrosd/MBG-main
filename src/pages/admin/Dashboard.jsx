@@ -47,7 +47,7 @@ export default function Dashboard({ onLogout }) {
               </button>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">Admin Dashboard</h1>
-                <p className="text-xs text-slate-500">MBG Nutrition Support</p>
+                <p className="text-xs text-slate-500">Sistem Informasi Gizi Anak dan Ibu Terpadu</p>
               </div>
             </div>
             <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 font-medium text-sm">

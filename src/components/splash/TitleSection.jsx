@@ -12,7 +12,7 @@ export default function TitleSection() {
       <div className="flex items-center justify-center gap-2 mt-4">
         <div className="h-px w-12 bg-gradient-to-r from-transparent to-blue-300" />
         <p className="text-xs sm:text-sm font-medium text-slate-500 uppercase tracking-widest">
-          Sistem Informasi Gizi Anak Pintar
+          Sistem Informasi Gizi Anak dan Ibu Terpadu
         </p>
         <div className="h-px w-12 bg-gradient-to-l from-transparent to-blue-300" />
       </div>

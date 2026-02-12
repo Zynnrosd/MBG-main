@@ -7,17 +7,18 @@ import ConsultationPage from './pages/ConsultationPage';
 import EducationPage from './pages/EducationPage';
 import LoginPage from './pages/admin/LoginPage';
 import Dashboard from './pages/admin/Dashboard';
-import PersagiLoginPage from './pages/persagi/PersagiLoginPage';
 import PersagiDashboard from './pages/persagi/PersagiDashboard';
 import DesktopNavbar from './components/navbar/DesktopNavbar';
 import MobileNavbar from './components/navbar/MobileNavbar';
-import { getCurrentUser } from './config/supabase';
+import { getCurrentUser, supabase } from './config/supabase';
 import './index.css'
 import PWABadge from './PWABadge';
 
 function AppRoot() {
   const [showSplash, setShowSplash] = useState(true);
   const [currentPage, setCurrentPage] = useState('recommendation');
+  
+  // Auth States
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPersagi, setIsPersagi] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
@@ -29,139 +30,126 @@ function AppRoot() {
   }, []);
 
   const checkAuth = async () => {
-    const path = window.location.pathname;
-    
-    // Check admin path
-    if (path.includes('/admin')) {
+    try {
       const user = await getCurrentUser();
+      
       if (user) {
-        setAdminUser(user);
-        setIsAdmin(true);
+        // 1. Cek Tabel Admins
+        const { data: adminData } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', user.email)
+          .maybeSingle();
+
+        if (adminData) {
+          // Gabungkan data auth + data tabel admin
+          setAdminUser({ ...user, id: adminData.id }); 
+          setIsAdmin(true);
+        } else {
+          // 2. Cek Tabel Doctors (PENTING: Ambil ID dari sini agar chat jalan)
+          const { data: doctorData } = await supabase
+            .from('doctors')
+            .select('*')
+            .eq('email', user.email)
+            .maybeSingle();
+
+          if (doctorData) {
+            // Gabungkan data auth + data tabel doctors
+            setPersagiUser({ ...user, id: doctorData.id, name: doctorData.name });
+            setIsPersagi(true);
+          }
+        }
       }
+    } catch (error) {
+      console.error("Auth check failed:", error);
+    } finally {
+      setCheckingAuth(false);
     }
-    
-    // Check PERSAGI path
-    if (path.includes('/persagi')) {
-      const user = await getCurrentUser();
-      if (user) {
-        setPersagiUser(user);
-        setIsPersagi(true);
-      }
+  };
+
+  const handleSplashComplete = () => setShowSplash(false);
+  const handleNavigation = (page) => setCurrentPage(page);
+
+  // Handler Login Pusat (Menerima profile dan role dari LoginPage)
+  const handleLoginSuccess = (userProfile, role) => {
+    if (role === 'admin') {
+      setAdminUser(userProfile);
+      setIsAdmin(true);
+      window.location.href = '/admin';
+    } else if (role === 'persagi') {
+      setPersagiUser(userProfile);
+      setIsPersagi(true);
+      window.location.href = '/persagi';
     }
-    
-    setCheckingAuth(false);
   };
 
-  const handleSplashComplete = () => {
-    setShowSplash(false);
-  };
-
-  const handleNavigation = (page) => {
-    setCurrentPage(page);
-  };
-
-  const handleAdminLogin = (user) => {
-    setAdminUser(user);
-    setIsAdmin(true);
-  };
-
-  const handleAdminLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem('mbg_guest_id');
     setAdminUser(null);
-    setIsAdmin(false);
-    window.location.href = '/';
-  };
-
-  const handlePersagiLogin = (user) => {
-    setPersagiUser(user);
-    setIsPersagi(true);
-  };
-
-  const handlePersagiLogout = () => {
     setPersagiUser(null);
+    setIsAdmin(false);
     setIsPersagi(false);
     window.location.href = '/';
   };
 
-  const renderCurrentPage = () => {
-    switch (currentPage) {
-      case 'recommendation':
-        return <RecommendationPage />;
-      case 'schedule':
-        return <SchedulePage />;
-      case 'consultation':
-        return <ConsultationPage />;
-      case 'education':
-        return <EducationPage />;
-      // --- PERBAIKAN DISINI ---
-      case 'login':
-        return (
-          <LoginPage 
-            onLoginSuccess={(user) => {
-              handleAdminLogin(user);
-              // Redirect ke dashboard admin setelah login sukses
-              window.location.href = '/admin'; 
-            }} 
-          />
-        );
-      // ------------------------
-      default:
-        return <RecommendationPage />;
-    }
-  };
-
-  // PERSAGI Login/Dashboard Route
-  if (window.location.pathname.includes('/persagi')) {
-    if (checkingAuth) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="text-slate-500 font-medium">Memeriksa autentikasi...</p>
-          </div>
+  // Komponen Loading yang Estetik
+  const LoadingScreen = () => (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
+      <div className="text-center space-y-6">
+        <div className="w-20 h-20 border-8 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto shadow-2xl shadow-blue-100"></div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter">SIGAP Gizi.</h2>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">Memeriksa Autentikasi...</p>
         </div>
-      );
-    }
+      </div>
+    </div>
+  );
 
-    if (!isPersagi) {
-      return <PersagiLoginPage onLoginSuccess={handlePersagiLogin} />;
-    }
+  // --- ROUTING LOGIC ---
+  const path = window.location.pathname;
 
-    return <PersagiDashboard onLogout={handlePersagiLogout} />;
+  // 1. PERSAGI Dashboard Route
+  if (path.includes('/persagi')) {
+    if (checkingAuth) return <LoadingScreen />;
+    // Jika belum login, tampilkan LoginPage umum
+    if (!isPersagi) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    return <PersagiDashboard onLogout={handleLogout} user={persagiUser} />;
   }
 
-  // Admin Login/Dashboard Route
-  if (window.location.pathname.includes('/admin')) {
-    if (checkingAuth) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="text-slate-500 font-medium">Memeriksa autentikasi...</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (!isAdmin) {
-      return <LoginPage onLoginSuccess={handleAdminLogin} />;
-    }
-
-    return <Dashboard onLogout={handleAdminLogout} />;
+  // 2. ADMIN Dashboard Route
+  if (path.includes('/admin')) {
+    if (checkingAuth) return <LoadingScreen />;
+    if (!isAdmin) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    return <Dashboard onLogout={handleLogout} user={adminUser} />;
   }
 
-  // User-facing app
+  // 3. User Facing App
   if (showSplash) {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case 'recommendation': return <RecommendationPage />;
+      case 'schedule': return <SchedulePage />;
+      case 'consultation': return <ConsultationPage />;
+      case 'education': return <EducationPage />;
+      case 'login': 
+        // Halaman login umum (biasanya untuk admin entry point)
+        return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+      default: return <RecommendationPage />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white font-sans">
       <DesktopNavbar 
         currentPage={currentPage} 
         onNavigate={handleNavigation}
       />
       
-      <main className="min-h-screen">
+      <main className="min-h-screen animate-in fade-in duration-700">
         {renderCurrentPage()}
       </main>
 
