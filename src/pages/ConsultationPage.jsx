@@ -1,32 +1,20 @@
-// src/pages/ConsultationPage.jsx - DENGAN CHAT WHATSAPP
 import { useState, useEffect } from 'react';
-import { MessageCircle, Phone, Video, Award, CheckCircle } from 'lucide-react';
+import { MessageCircle, Phone, Video, Award, CheckCircle, Search, Star } from 'lucide-react'; // Pastikan import ini lengkap
 import { supabase } from '../config/supabase';
+import { v4 as uuidv4 } from 'uuid'; // Install uuid: npm install uuid
 import ChatWindow from '../components/ChatWindow';
 
 export default function ConsultationPage() {
   const [dietitians, setDietitians] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [selectedDietitian, setSelectedDietitian] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  
+  // State untuk Chat
+  const [activeSession, setActiveSession] = useState(null); // Ganti chatOpen dengan activeSession
+  const [loadingChat, setLoadingChat] = useState(false);
 
   useEffect(() => {
     loadDietitians();
-    loadCurrentUser();
   }, []);
-
-  const loadCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setCurrentUser(user);
-    } else {
-      // If not logged in, create anonymous user session
-      const anonymousId = localStorage.getItem('anonymous_user_id') || crypto.randomUUID();
-      localStorage.setItem('anonymous_user_id', anonymousId);
-      setCurrentUser({ id: anonymousId, email: 'anonymous' });
-    }
-  };
 
   const loadDietitians = async () => {
     setLoading(true);
@@ -35,7 +23,7 @@ export default function ConsultationPage() {
         .from('dietitians')
         .select('*')
         .eq('is_active', true)
-        .order('rating', { ascending: false });
+        .order('is_online', { ascending: false }); // Online di atas
       
       if (error) throw error;
       setDietitians(data || []);
@@ -46,9 +34,49 @@ export default function ConsultationPage() {
     }
   };
 
-  const handleOpenChat = (dietitian) => {
-    setSelectedDietitian(dietitian);
-    setChatOpen(true);
+  // LOGIC BARU: Handle Chat (Create Session First)
+  const handleOpenChat = async (dietitian) => {
+    setLoadingChat(true);
+    try {
+        // 1. Identifikasi User (Guest/Login)
+        let guestId = localStorage.getItem('mbg_guest_id');
+        if (!guestId) {
+            guestId = uuidv4(); 
+            localStorage.setItem('mbg_guest_id', guestId);
+        }
+
+        // 2. Cek apakah ada sesi chat yang belum ditutup?
+        const { data: existingSession } = await supabase
+            .from('chat_sessions')
+            .select('*')
+            .eq('user_guest_id', guestId)
+            .eq('dietitian_id', dietitian.id)
+            .eq('status', 'active')
+            .single();
+
+        if (existingSession) {
+            setActiveSession({ ...existingSession, dietitian });
+        } else {
+            // 3. Buat sesi baru jika belum ada
+            const { data: newSession, error } = await supabase
+                .from('chat_sessions')
+                .insert([{
+                    user_guest_id: guestId,
+                    dietitian_id: dietitian.id,
+                    status: 'active'
+                }])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            setActiveSession({ ...newSession, dietitian });
+        }
+    } catch (err) {
+        console.error("Gagal memulai chat:", err);
+        alert("Terjadi kesalahan koneksi chat.");
+    } finally {
+        setLoadingChat(false);
+    }
   };
 
   if (loading) {
@@ -115,7 +143,7 @@ export default function ConsultationPage() {
                     <div className="shrink-0">
                       <div className="relative">
                         <img 
-                          src={dietitian.photo_url || 'https://via.placeholder.com/120'} 
+                          src={dietitian.photo_url || `https://ui-avatars.com/api/?name=${dietitian.name}`} 
                           alt={dietitian.name}
                           className="w-28 h-28 rounded-3xl object-cover border-4 border-blue-50"
                         />
@@ -150,26 +178,27 @@ export default function ConsultationPage() {
                         <div className="flex items-center gap-4 text-sm text-slate-600 mb-3">
                           <div className="flex items-center gap-1">
                             <span className="text-yellow-400">★</span>
-                            <span className="font-bold text-slate-700">{dietitian.rating}</span>
+                            <span className="font-bold text-slate-700">{dietitian.rating || 5.0}</span>
                           </div>
                           <div className="h-4 w-px bg-slate-200"></div>
-                          <span>{dietitian.experience_years} tahun pengalaman</span>
+                          <span>{dietitian.experience_years || 0} tahun pengalaman</span>
                         </div>
                       </div>
 
                       {/* Bio */}
                       <p className="text-sm text-slate-600 leading-relaxed">
-                        {dietitian.bio}
+                        {dietitian.bio || 'Ahli gizi berpengalaman siap membantu masalah nutrisi Anda.'}
                       </p>
 
                       {/* Action Buttons */}
                       <div className="flex flex-wrap gap-3">
                         <button 
                           onClick={() => handleOpenChat(dietitian)}
-                          className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-200"
+                          disabled={loadingChat}
+                          className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-200 disabled:opacity-70 disabled:cursor-wait"
                         >
                           <MessageCircle size={18} />
-                          Chat Sekarang
+                          {loadingChat ? 'Menghubungkan...' : 'Chat Sekarang'}
                         </button>
                         <button className="flex items-center gap-2 px-5 py-3 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold hover:border-blue-300 transition-all active:scale-95">
                           <Phone size={18} />
@@ -193,24 +222,20 @@ export default function ConsultationPage() {
           <MessageCircle className="text-blue-600 shrink-0" size={28} />
           <div className="space-y-2">
             <p className="text-[12px] text-slate-600 leading-relaxed font-medium">
-              <strong className="text-blue-900">Dietisien (RD)</strong> adalah ahli gizi profesional yang telah tersertifikasi 
-              dan terdaftar secara resmi. Mereka memiliki kompetensi untuk memberikan konsultasi gizi, 
-              menyusun rencana makan, dan membantu mengatasi masalah kesehatan terkait nutrisi.
+              <strong className="text-blue-900">Dietisien (RD)</strong> adalah ahli gizi profesional...
             </p>
             <p className="text-[12px] text-slate-600 leading-relaxed font-medium">
-              Chat langsung memudahkan Anda berkonsultasi kapan saja. Semua percakapan tersimpan 
-              dan dapat diakses kembali untuk referensi di masa depan.
+              Chat langsung memudahkan Anda berkonsultasi kapan saja...
             </p>
           </div>
         </div>
       </div>
 
-      {/* Chat Window - WhatsApp Style */}
-      {chatOpen && selectedDietitian && currentUser && (
+      {/* CHAT WINDOW (Single Instance, Logic Internal) */}
+      {activeSession && (
         <ChatWindow 
-          dietitian={selectedDietitian}
-          currentUser={currentUser}
-          onClose={() => setChatOpen(false)}
+          session={activeSession}
+          onClose={() => setActiveSession(null)}
         />
       )}
     </>

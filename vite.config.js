@@ -54,6 +54,15 @@ export default defineConfig({
         ]
       },
 
+      server: {
+    proxy: {
+      '/api-wilayah': {
+        target: 'https://wilayah.id/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-wilayah/, '')
+      }
+    }
+  },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         cleanupOutdatedCaches: true,
