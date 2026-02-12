@@ -1,309 +1,317 @@
-// src/components/admin/EducationManager.jsx
 import { useState, useEffect } from 'react';
-import { BookOpen, Plus, Edit2, Trash2, Save, X, MoveUp, MoveDown } from 'lucide-react';
 import { supabase } from '../../config/supabase';
-import ConfirmModal from '../modals/ConfirmModal';
+import { Plus, Edit2, Trash2, X, Save, Sparkles, Brain, Apple, Moon } from 'lucide-react';
+
+const ICONS = ['Sparkles', 'Brain', 'Apple', 'Moon'];
+const COLORS = ['blue', 'orange', 'green', 'purple', 'pink', 'yellow'];
 
 export default function EducationManager() {
   const [facts, setFacts] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [deleteModal, setDeleteModal] = useState({ show: false, item: null });
-  const [loading, setLoading] = useState(false);
-
-  const [form, setForm] = useState({
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  
+  // State Form
+  const [formData, setFormData] = useState({
     title: '',
     content: '',
+    details: '', // Field baru untuk artikel panjang
+    source: '',
     icon_name: 'Sparkles',
     color: 'blue',
-    source: '',
-    order_number: 1,
-    is_active: true
+    is_active: true,
+    order_number: 0
   });
 
-  const iconOptions = ['Sparkles', 'Brain', 'Apple', 'Moon'];
-  const colorOptions = [
-    { value: 'blue', label: 'Biru' },
-    { value: 'green', label: 'Hijau' },
-    { value: 'orange', label: 'Oranye' },
-    { value: 'purple', label: 'Ungu' },
-    { value: 'pink', label: 'Pink' },
-    { value: 'yellow', label: 'Kuning' }
-  ];
-
   useEffect(() => {
-    loadFacts();
+    fetchFacts();
   }, []);
 
-  const loadFacts = async () => {
-    const { data } = await supabase.from('education_facts').select('*').order('order_number');
-    setFacts(data || []);
+  const fetchFacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('education_facts')
+        .select('*')
+        .order('order_number', { ascending: true });
+      
+      if (error) throw error;
+      setFacts(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Gagal memuat data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSave = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
+
     try {
-      if (editing) {
-        await supabase.from('education_facts').update(form).eq('id', editing.id);
+      if (editingId) {
+        // Mode Edit
+        const { error } = await supabase
+          .from('education_facts')
+          .update(formData)
+          .eq('id', editingId);
+        if (error) throw error;
       } else {
-        // Get max order number and add 1
-        const maxOrder = facts.length > 0 ? Math.max(...facts.map(f => f.order_number)) : 0;
-        await supabase.from('education_facts').insert([{ ...form, order_number: maxOrder + 1 }]);
+        // Mode Tambah Baru
+        // Kita set order_number otomatis ke paling akhir
+        const newOrder = facts.length > 0 ? Math.max(...facts.map(f => f.order_number)) + 1 : 1;
+        const { error } = await supabase
+          .from('education_facts')
+          .insert([{ ...formData, order_number: newOrder }]);
+        if (error) throw error;
       }
-      loadFacts();
-      resetForm();
+
+      await fetchFacts();
+      closeModal();
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Gagal menyimpan data');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async () => {
-    setLoading(true);
+  const handleDelete = async (id) => {
+    if (!window.confirm('Yakin ingin menghapus informasi ini?')) return;
     try {
-      await supabase.from('education_facts').delete().eq('id', deleteModal.item.id);
-      loadFacts();
-      setDeleteModal({ show: false, item: null });
-    } finally {
-      setLoading(false);
+      const { error } = await supabase.from('education_facts').delete().eq('id', id);
+      if (error) throw error;
+      fetchFacts();
+    } catch (error) {
+      alert('Gagal menghapus');
     }
   };
 
-  const moveItem = async (fact, direction) => {
-    const currentIndex = facts.findIndex(f => f.id === fact.id);
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    
-    if (targetIndex < 0 || targetIndex >= facts.length) return;
-    
-    const targetFact = facts[targetIndex];
-    
-    // Swap order numbers
-    await supabase.from('education_facts').update({ order_number: targetFact.order_number }).eq('id', fact.id);
-    await supabase.from('education_facts').update({ order_number: fact.order_number }).eq('id', targetFact.id);
-    
-    loadFacts();
-  };
-
-  const resetForm = () => {
-    setForm({
-      title: '',
-      content: '',
-      icon_name: 'Sparkles',
-      color: 'blue',
-      source: '',
-      order_number: 1,
-      is_active: true
-    });
-    setEditing(null);
-    setShowForm(false);
-  };
-
-  const startEdit = (fact) => {
-    setForm({
+  const openEditModal = (fact) => {
+    setFormData({
       title: fact.title,
       content: fact.content,
+      details: fact.details || '', // Load details jika ada
+      source: fact.source || '',
       icon_name: fact.icon_name,
       color: fact.color,
-      source: fact.source || '',
-      order_number: fact.order_number,
-      is_active: fact.is_active
+      is_active: fact.is_active,
+      order_number: fact.order_number
     });
-    setEditing(fact);
-    setShowForm(true);
+    setEditingId(fact.id);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setFormData({
+      title: '',
+      content: '',
+      details: '',
+      source: '',
+      icon_name: 'Sparkles',
+      color: 'blue',
+      is_active: true,
+      order_number: 0
+    });
+    setEditingId(null);
+    setIsModalOpen(false);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Kelola Edukasi</h2>
-          <p className="text-sm text-slate-500 mt-1">Tambah dan kelola fun facts gizi</p>
-        </div>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Header */}
+      <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-slate-800">Manajemen Edukasi</h2>
         <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
         >
-          <Plus size={18} />
-          Tambah Fun Fact
+          <Plus size={16} /> Tambah Info
         </button>
       </div>
 
-      {facts.length === 0 ? (
-        <div className="text-center py-12 bg-slate-50 rounded-2xl">
-          <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">Belum ada konten edukasi</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {facts.map((fact, index) => (
-            <div key={fact.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => moveItem(fact, 'up')}
-                  disabled={index === 0}
-                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <MoveUp size={16} />
-                </button>
-                <button
-                  onClick={() => moveItem(fact, 'down')}
-                  disabled={index === facts.length - 1}
-                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <MoveDown size={16} />
-                </button>
-              </div>
+      {/* Table List */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-slate-50 text-slate-500 font-medium">
+            <tr>
+              <th className="px-6 py-4">Judul</th>
+              <th className="px-6 py-4">Ringkasan</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {facts.map((fact) => (
+              <tr key={fact.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4 font-medium text-slate-900">{fact.title}</td>
+                <td className="px-6 py-4 text-slate-500 max-w-xs truncate">{fact.content}</td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    fact.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {fact.is_active ? 'Aktif' : 'Draft'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right space-x-2">
+                  <button onClick={() => openEditModal(fact)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors">
+                    <Edit2 size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(fact.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 bg-${fact.color}-100 text-${fact.color}-600`}>
-                <span className="text-2xl">{fact.icon_name === 'Sparkles' ? '✨' : fact.icon_name === 'Brain' ? '🧠' : fact.icon_name === 'Apple' ? '🍎' : '🌙'}</span>
+      {/* MODAL FORM */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
+            <form onSubmit={handleSubmit}>
+              <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center z-10">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {editingId ? 'Edit Informasi' : 'Tambah Informasi Baru'}
+                </h3>
+                <button type="button" onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-full text-slate-500">
+                  <X size={20} />
+                </button>
               </div>
               
-              <div className="flex-1">
-                <h3 className="font-bold text-slate-900">{fact.title}</h3>
-                <p className="text-sm text-slate-600 mt-1 line-clamp-2">{fact.content}</p>
-                {fact.source && (
-                  <p className="text-xs text-slate-400 mt-1">Sumber: {fact.source}</p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-1 rounded-full font-bold ${fact.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {fact.is_active ? 'Aktif' : 'Nonaktif'}
-                </span>
-                <button
-                  onClick={() => startEdit(fact)}
-                  className="p-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  onClick={() => setDeleteModal({ show: true, item: fact })}
-                  className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full my-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-900">
-                {editing ? 'Edit Fun Fact' : 'Tambah Fun Fact'}
-              </h3>
-              <button onClick={resetForm} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-2">Judul</label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full p-3 bg-slate-50 border-transparent rounded-xl text-sm font-medium mt-2 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                  placeholder="Super Protein"
-                />
-              </div>
-              
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-2">Konten</label>
-                <textarea
-                  value={form.content}
-                  onChange={(e) => setForm({ ...form, content: e.target.value })}
-                  className="w-full p-3 bg-slate-50 border-transparent rounded-xl text-sm font-medium mt-2 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                  rows="4"
-                  placeholder="Satu butir telur mengandung protein setara segelas susu."
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
+              <div className="p-6 space-y-5">
+                {/* Judul */}
                 <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-2">Ikon</label>
-                  <select
-                    value={form.icon_name}
-                    onChange={(e) => setForm({ ...form, icon_name: e.target.value })}
-                    className="w-full p-3 bg-slate-50 border-transparent rounded-xl text-sm font-medium mt-2 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                  >
-                    {iconOptions.map(icon => (
-                      <option key={icon} value={icon}>{icon}</option>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Judul Utama</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.title}
+                    onChange={e => setFormData({...formData, title: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    placeholder="Contoh: Manfaat Wortel"
+                  />
+                </div>
+
+                {/* Ringkasan (Muncul di Kartu Depan) */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Ringkasan (Kartu Depan)</label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={formData.content}
+                    onChange={e => setFormData({...formData, content: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Ringkasan singkat yang muncul di halaman awal..."
+                  />
+                </div>
+
+                {/* --- INPUT BARU: DETAIL ARTIKEL --- */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Konten Lengkap (Artikel)
+                    <span className="ml-2 text-xs text-slate-400 font-normal">Muncul saat kartu diklik. Bisa pakai enter untuk paragraf baru.</span>
+                  </label>
+                  <textarea
+                    rows={8}
+                    value={formData.details}
+                    onChange={e => setFormData({...formData, details: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 leading-relaxed"
+                    placeholder="Tulis artikel lengkap di sini..."
+                  />
+                </div>
+
+                {/* Grid untuk Opsi Kecil */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Sumber (Opsional)</label>
+                    <input
+                      type="text"
+                      value={formData.source}
+                      onChange={e => setFormData({...formData, source: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Jurnal / Kemenkes"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Warna Tema</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {COLORS.map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setFormData({...formData, color: c})}
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${
+                            formData.color === c ? 'border-slate-600 scale-110' : 'border-transparent opacity-50 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: c === 'white' ? '#eee' : c }} // Simple color preview
+                        >
+                           <span className={`block w-full h-full rounded-full bg-${c}-500`} /> 
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pilihan Ikon */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Ikon</label>
+                  <div className="flex gap-3">
+                    {ICONS.map(iconName => (
+                      <button
+                        key={iconName}
+                        type="button"
+                        onClick={() => setFormData({...formData, icon_name: iconName})}
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                          formData.icon_name === iconName 
+                            ? 'bg-blue-50 border-blue-500 text-blue-700' 
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {iconName}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
                 
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-2">Warna</label>
-                  <select
-                    value={form.color}
-                    onChange={(e) => setForm({ ...form, color: e.target.value })}
-                    className="w-full p-3 bg-slate-50 border-transparent rounded-xl text-sm font-medium mt-2 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                  >
-                    {colorOptions.map(color => (
-                      <option key={color.value} value={color.value}>{color.label}</option>
-                    ))}
-                  </select>
+                {/* Toggle Aktif */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    checked={formData.is_active}
+                    onChange={e => setFormData({...formData, is_active: e.target.checked})}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                  />
+                  <label htmlFor="isActive" className="text-sm font-medium text-slate-700">Tampilkan ke Publik</label>
                 </div>
-              </div>
-              
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-2">Sumber (Opsional)</label>
-                <input
-                  type="text"
-                  value={form.source}
-                  onChange={(e) => setForm({ ...form, source: e.target.value })}
-                  className="w-full p-3 bg-slate-50 border-transparent rounded-xl text-sm font-medium mt-2 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                  placeholder="Kemenkes RI, 2024"
-                />
-              </div>
-              
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                  className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-2 focus:ring-green-500"
-                />
-                <span className="text-sm font-medium text-slate-700">Tampilkan di aplikasi</span>
-              </label>
-            </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={resetForm}
-                className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={loading || !form.title || !form.content}
-                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <Save size={18} />
-                {loading ? 'Menyimpan...' : 'Simpan'}
-              </button>
-            </div>
+              </div>
+
+              {/* Footer Modal */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-5 py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2"
+                >
+                  {loading ? 'Menyimpan...' : <><Save size={18} /> Simpan Data</>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        isOpen={deleteModal.show}
-        onClose={() => setDeleteModal({ show: false, item: null })}
-        onConfirm={handleDelete}
-        title="Hapus Fun Fact?"
-        message="Apakah Anda yakin ingin menghapus konten edukasi ini?"
-        confirmText="Ya, Hapus"
-        variant="danger"
-        isLoading={loading}
-      />
     </div>
   );
 }
