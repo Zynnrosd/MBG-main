@@ -1,6 +1,6 @@
 // src/pages/EducationPage.jsx
 import { useState, useEffect } from 'react';
-import { Sparkles, Brain, Apple, Moon, ChevronRight, AlertCircle } from 'lucide-react';
+import { Sparkles, Brain, Apple, Moon, ChevronRight, AlertCircle, ArrowLeft, Calendar, User } from 'lucide-react';
 import { supabase } from '../config/supabase';
 
 const iconMap = {
@@ -22,6 +22,8 @@ const colorMap = {
 export default function EducationPage() {
   const [facts, setFacts] = useState([]);
   const [loading, setLoading] = useState(true);
+  // State baru untuk menyimpan artikel yang sedang dibuka
+  const [selectedFact, setSelectedFact] = useState(null);
 
   useEffect(() => {
     loadFacts();
@@ -55,6 +57,63 @@ export default function EducationPage() {
     );
   }
 
+  // --- TAMPILAN DETAIL ARTIKEL ---
+  if (selectedFact) {
+    const Icon = iconMap[selectedFact.icon_name] || Sparkles;
+    // Kita ambil warna dasarnya (misal: text-orange-600) untuk styling elemen lain
+    const themeColor = selectedFact.color || 'blue'; 
+    const colorClasses = colorMap[themeColor];
+
+    return (
+      <div className="max-w-xl md:max-w-5xl mx-auto min-h-screen bg-white pb-32 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        
+        {/* Header Artikel */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100 px-6 py-4 flex items-center gap-4">
+          <button 
+            onClick={() => setSelectedFact(null)}
+            className="p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <span className="font-bold text-slate-800 text-lg">Detail Informasi</span>
+        </div>
+
+        <div className="p-6 md:p-10 space-y-8"> {/* Tambah padding desktop */}
+          
+          {/* Hero Section Artikel */}
+          <div className={`p-8 md:p-12 rounded-[2.5rem] ${colorClasses} border-transparent text-center space-y-6`}>
+             <div className="w-24 h-24 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-lg mb-6">
+                <Icon size={48} />
+             </div>
+             <h1 className="text-2xl md:text-4xl font-black tracking-tight text-slate-900 leading-tight">
+               {selectedFact.title}
+             </h1>
+             {/* Metadata (User, Date, dll) tetap sama */}
+          </div>
+
+          {/* Konten Artikel */}
+          {/* md:text-lg agar tulisan di desktop sedikit lebih besar dan enak dibaca */}
+          <div className="prose prose-slate prose-lg md:prose-xl max-w-none leading-relaxed text-slate-600">
+            <p className="whitespace-pre-line">
+              {selectedFact.details || selectedFact.content}
+            </p>
+          </div>
+
+          {/* Footer Artikel / Sumber */}
+          {selectedFact.source && (
+            <div className="pt-6 border-t border-slate-100">
+              <p className="text-xs text-slate-400 font-medium">
+                Referensi Ilmiah: <br/>
+                <span className="text-slate-600 italic">{selectedFact.source}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // --- TAMPILAN UTAMA (LIST) ---
   return (
     <div className="max-w-xl mx-auto p-6 space-y-8 pb-32 min-h-screen bg-white">
       <header className="space-y-2">
@@ -74,31 +133,33 @@ export default function EducationPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5">
-          {facts.map((fact, i) => {
+          {facts.map((fact) => {
             const Icon = iconMap[fact.icon_name] || Sparkles;
             const colorClass = colorMap[fact.color] || colorMap.blue;
             
             return (
               <div 
                 key={fact.id} 
-                className={`p-8 rounded-[2.8rem] border flex gap-8 items-center group hover:bg-white hover:shadow-2xl hover:scale-[1.02] transition-all duration-500 ${colorClass} border-transparent`}
+                onClick={() => setSelectedFact(fact)} // Event Click untuk membuka artikel
+                className={`p-8 rounded-[2.8rem] border flex gap-6 items-center group cursor-pointer hover:bg-white hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 ${colorClass} border-transparent relative overflow-hidden`}
               >
-                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shrink-0 bg-white shadow-xl group-hover:rotate-6 transition-transform`}>
+                {/* Visual Feedback saat hover/active */}
+                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
+
+                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shrink-0 bg-white shadow-xl group-hover:rotate-6 transition-transform z-10`}>
                   <Icon size={32} />
                 </div>
-                <div className="space-y-2 flex-1">
-                  <h3 className="font-extrabold text-xl text-slate-800 tracking-tight">{fact.title}</h3>
-                  <p className="text-sm text-slate-600 leading-relaxed font-medium opacity-80">
+                
+                <div className="space-y-2 flex-1 z-10">
+                  <h3 className="font-extrabold text-xl text-slate-800 tracking-tight group-hover:text-blue-700 transition-colors">
+                    {fact.title}
+                  </h3>
+                  <p className="text-sm text-slate-600 leading-relaxed font-medium opacity-80 line-clamp-2">
                     {fact.content}
                   </p>
-                  {fact.source && (
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wider mt-2">
-                      Sumber: {fact.source}
-                    </p>
-                  )}
-                </div>
-                <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
-                  <ChevronRight size={20} />
+                  <div className="text-[10px] font-bold text-slate-400 mt-2 flex items-center gap-1 group-hover:text-blue-600 transition-colors">
+                    BACA SELENGKAPNYA <ChevronRight size={12} />
+                  </div>
                 </div>
               </div>
             );
@@ -106,6 +167,7 @@ export default function EducationPage() {
         </div>
       )}
 
+      {/* Footer Banner (tetap sama) */}
       <div className="bg-slate-900 p-10 rounded-[3rem] text-center text-white space-y-6 shadow-2xl relative overflow-hidden group">
         <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-600 rounded-full blur-[80px] opacity-30 group-hover:opacity-50 transition-opacity" />
         <div className="relative z-10 space-y-4">
