@@ -1,27 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, ArrowLeft, Paperclip, Minimize2, Maximize2, User, ChevronUp, ChevronDown } from 'lucide-react';
+import { Send, X, ArrowLeft, User, Minimize2, Maximize2 } from 'lucide-react';
 import { supabase } from '../config/supabase';
 
 export default function ChatWindow({ session, onClose }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  
-  // View State: 'normal', 'minimized', 'expanded'
   const [viewState, setViewState] = useState('normal');
-  
   const messagesEndRef = useRef(null);
-  
-  // Ubah breakpoint ke 1024 agar Tablet juga dapat tampilan Fullscreen yang nyaman
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
-  // Listener Resize untuk Responsivitas
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 1. Load Pesan & Realtime
   useEffect(() => {
     fetchMessages();
 
@@ -43,7 +36,6 @@ export default function ChatWindow({ session, onClose }) {
     return () => { supabase.removeChannel(channel); };
   }, [session.id]);
 
-  // Auto Scroll ke bawah
   useEffect(() => {
     if (viewState !== 'minimized') {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,27 +77,21 @@ export default function ChatWindow({ session, onClose }) {
     return new Date(dateString).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // --- LOGIC STYLE CONTAINER ---
   const getContainerStyle = () => {
-    // 1. MODE MOBILE / TABLET (Fullscreen)
     if (isMobile) {
-        // 'inset-0' memaksa elemen menempel ke 4 sisi layar
-        // 'fixed' agar tidak ikut scroll body utama
-        // 'z-50' agar di atas segalanya
         return 'fixed inset-0 w-full h-full bg-white flex flex-col z-[9999]'; 
     }
 
-    // 2. MODE DESKTOP (Widget)
-    const baseStyle = "fixed bottom-0 right-4 bg-white border border-slate-300 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden flex flex-col z-50";
+    const baseStyle = "fixed bottom-0 right-6 bg-white border-2 border-slate-200 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden flex flex-col z-50 rounded-t-2xl";
     
     switch (viewState) {
         case 'minimized':
-            return `${baseStyle} w-[300px] h-[55px] rounded-t-xl`; // Hanya header
+            return `${baseStyle} w-[340px] h-[60px]`;
         case 'expanded':
-            return `${baseStyle} w-[800px] h-[600px] rounded-t-xl right-[50%] translate-x-[50%]`; // Mode Lebar (Tengah)
+            return `${baseStyle} w-[800px] h-[650px] right-[50%] translate-x-[50%]`;
         case 'normal':
         default:
-            return `${baseStyle} w-[360px] h-[520px] rounded-t-xl`; // Ukuran Standar
+            return `${baseStyle} w-[380px] h-[560px]`;
     }
   };
 
@@ -114,13 +100,13 @@ export default function ChatWindow({ session, onClose }) {
       
       {/* HEADER */}
       <div 
-        className="bg-blue-600 text-white p-3 flex items-center justify-between shadow-md shrink-0 cursor-pointer select-none"
+        className="bg-blue-600 text-white p-4 flex items-center justify-between shadow-lg shrink-0 cursor-pointer select-none"
         onClick={() => !isMobile && setViewState(viewState === 'minimized' ? 'normal' : 'minimized')}
       >
         <div className="flex items-center gap-3">
           {isMobile && (
             <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 -ml-1">
-              <ArrowLeft size={22} />
+              <ArrowLeft size={20} />
             </button>
           )}
           
@@ -128,11 +114,11 @@ export default function ChatWindow({ session, onClose }) {
             {session.dietitian?.photo_url ? (
                 <img 
                 src={session.dietitian.photo_url} 
-                className="w-10 h-10 rounded-full object-cover bg-white border-2 border-blue-400"
+                className="w-11 h-11 rounded-full object-cover bg-white border-2 border-blue-400"
                 alt="Avatar"
                 />
             ) : (
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center">
                     <User size={20} />
                 </div>
             )}
@@ -146,59 +132,55 @@ export default function ChatWindow({ session, onClose }) {
             <h3 className="font-bold text-sm leading-tight truncate max-w-[180px]">
               {session.dietitian?.name || 'Ahli Gizi'}
             </h3>
-            <p className="text-[11px] text-blue-100 opacity-90">
-              {session.dietitian?.is_online ? '• Online' : 'Offline'}
+            <p className="text-xs text-blue-100 opacity-90">
+              {session.dietitian?.is_online ? 'Sedang Aktif' : 'Offline'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1">
-           {/* Tombol Control Desktop */}
            {!isMobile && (
                <>
-                   {/* Maximize / Expand */}
                    <button 
                     onClick={(e) => { 
                         e.stopPropagation(); 
                         setViewState(viewState === 'expanded' ? 'normal' : 'expanded'); 
                     }} 
-                    className="p-1.5 hover:bg-white/10 rounded-lg transition"
-                    title={viewState === 'expanded' ? "Kecilkan" : "Perbesar"}
+                    className="p-2 hover:bg-white/10 rounded-lg transition"
+                    title={viewState === 'expanded' ? "Normal" : "Perbesar"}
                    >
-                       {viewState === 'expanded' ? <Minimize2 size={18}/> : <Maximize2 size={18}/>}
+                       <Maximize2 size={16}/>
                    </button>
 
-                   {/* Minimize / Collapse */}
                    <button 
                     onClick={(e) => { 
                         e.stopPropagation(); 
                         setViewState(viewState === 'minimized' ? 'normal' : 'minimized'); 
                     }} 
-                    className="p-1.5 hover:bg-white/10 rounded-lg transition"
+                    className="p-2 hover:bg-white/10 rounded-lg transition"
+                    title={viewState === 'minimized' ? "Buka" : "Minimalkan"}
                    >
-                       {viewState === 'minimized' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                       <Minimize2 size={16}/>
                    </button>
                </>
            )}
            
-           {/* Close Button */}
            <button 
             onClick={(e) => { e.stopPropagation(); onClose(); }} 
-            className="p-1.5 hover:bg-red-500/20 hover:text-red-100 rounded-lg transition"
+            className="p-2 hover:bg-red-500/20 hover:text-red-100 rounded-lg transition ml-1"
            >
-               <X size={20}/>
+               <X size={18}/>
            </button>
         </div>
       </div>
 
-      {/* ISI CHAT (Hidden jika Minimized) */}
       {viewState !== 'minimized' && (
         <>
-            {/* AREA PESAN (Flex Grow) */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100/50">
-                <div className="flex justify-center my-4">
-                    <span className="text-[10px] text-slate-500 bg-white border border-slate-200 px-4 py-1.5 rounded-full shadow-sm">
-                        🔒 Sesi konsultasi privat dimulai
+            {/* AREA PESAN */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                <div className="flex justify-center my-3">
+                    <span className="text-xs text-slate-500 bg-white px-4 py-1.5 rounded-full shadow-sm border border-slate-200">
+                        Konsultasi dimulai
                     </span>
                 </div>
 
@@ -209,12 +191,12 @@ export default function ChatWindow({ session, onClose }) {
                         <div 
                             className={`relative max-w-[85%] px-4 py-2.5 text-sm rounded-2xl shadow-sm 
                             ${isMe 
-                                ? 'bg-blue-600 text-white rounded-br-none' 
-                                : 'bg-white text-slate-700 border border-slate-200 rounded-bl-none'
+                                ? 'bg-blue-600 text-white rounded-br-sm' 
+                                : 'bg-white text-slate-700 border border-slate-200 rounded-bl-sm'
                             }`}
                         >
                             <p className="leading-relaxed pb-1 whitespace-pre-wrap">{msg.message_text}</p>
-                            <p className={`text-[9px] text-right ${isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                            <p className={`text-xs text-right ${isMe ? 'text-blue-100' : 'text-slate-400'}`}>
                                 {formatTime(msg.created_at)}
                             </p>
                         </div>
@@ -224,26 +206,28 @@ export default function ChatWindow({ session, onClose }) {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* INPUT AREA (Fixed at Bottom) */}
-            <form onSubmit={handleSend} className="bg-white p-3 border-t border-slate-200 flex items-center gap-2 shrink-0 z-20 safe-area-bottom">
-                <button type="button" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition">
-                    <Paperclip size={22}/>
-                </button>
-                
-                <input
+            {/* INPUT AREA */}
+            <form onSubmit={handleSend} className="bg-white p-4 border-t border-slate-200 flex items-end gap-2 shrink-0 z-20 safe-area-bottom">
+                <textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Tulis pesan..."
-                    className="flex-1 py-3 px-5 rounded-full border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50 transition-all placeholder:text-slate-400"
-                    // autoFocus={!isMobile} // Disable autofocus on mobile to prevent keyboard jumping
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend(e);
+                      }
+                    }}
+                    placeholder="Ketik pesan..."
+                    className="flex-1 px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50 text-sm resize-none focus:outline-none focus:border-blue-500 focus:bg-white transition-all placeholder:text-slate-400"
+                    rows="2"
                 />
                 
                 <button 
                     type="submit" 
                     disabled={!newMessage.trim()}
-                    className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-200"
+                    className="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-200 font-semibold text-sm shrink-0"
                 >
-                    <Send size={20} className={newMessage.trim() ? "translate-x-0.5" : ""}/>
+                    <Send size={18}/>
                 </button>
             </form>
         </>

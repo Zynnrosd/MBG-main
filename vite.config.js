@@ -3,11 +3,10 @@ import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(), // Tailwind ditaruh sini biar aman
+    tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png', 'LOGORN.png'],
@@ -19,9 +18,9 @@ export default defineConfig({
       },
 
       manifest: {
-        name: 'MBG',
-        short_name: 'MBG',
-        description: 'Aplikasi MBG',
+        name: 'SIGAP Gizi',
+        short_name: 'SIGAP Gizi',
+        description: 'Sistem Informasi Gizi Anak Pintar',
         theme_color: '#2563eb',
         background_color: '#ffffff',
         display: 'standalone',
@@ -55,14 +54,15 @@ export default defineConfig({
       },
 
       server: {
-    proxy: {
-      '/api-wilayah': {
-        target: 'https://wilayah.id/api',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api-wilayah/, '')
-      }
-    }
-  },
+        proxy: {
+          '/api-wilayah': {
+            target: 'https://wilayah.id/api',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api-wilayah/, '')
+          }
+        }
+      },
+      
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         cleanupOutdatedCaches: true,

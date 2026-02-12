@@ -1,4 +1,3 @@
-// src/main.jsx
 import { StrictMode, useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import SplashScreen from './pages/SplashScreen';
@@ -8,9 +7,10 @@ import ConsultationPage from './pages/ConsultationPage';
 import EducationPage from './pages/EducationPage';
 import LoginPage from './pages/admin/LoginPage';
 import Dashboard from './pages/admin/Dashboard';
+import PersagiLoginPage from './pages/persagi/PersagiLoginPage';
+import PersagiDashboard from './pages/persagi/PersagiDashboard';
 import DesktopNavbar from './components/navbar/DesktopNavbar';
 import MobileNavbar from './components/navbar/MobileNavbar';
-import AdminFloatingButton from './components/AdminFloatingButton';
 import { getCurrentUser } from './config/supabase';
 import './index.css'
 import PWABadge from './PWABadge';
@@ -19,16 +19,19 @@ function AppRoot() {
   const [showSplash, setShowSplash] = useState(true);
   const [currentPage, setCurrentPage] = useState('recommendation');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPersagi, setIsPersagi] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
+  const [persagiUser, setPersagiUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    checkAdminAuth();
+    checkAuth();
   }, []);
 
-  const checkAdminAuth = async () => {
-    // Check if we're on admin path
+  const checkAuth = async () => {
     const path = window.location.pathname;
+    
+    // Check admin path
     if (path.includes('/admin')) {
       const user = await getCurrentUser();
       if (user) {
@@ -36,6 +39,16 @@ function AppRoot() {
         setIsAdmin(true);
       }
     }
+    
+    // Check PERSAGI path
+    if (path.includes('/persagi')) {
+      const user = await getCurrentUser();
+      if (user) {
+        setPersagiUser(user);
+        setIsPersagi(true);
+      }
+    }
+    
     setCheckingAuth(false);
   };
 
@@ -58,6 +71,17 @@ function AppRoot() {
     window.location.href = '/';
   };
 
+  const handlePersagiLogin = (user) => {
+    setPersagiUser(user);
+    setIsPersagi(true);
+  };
+
+  const handlePersagiLogout = () => {
+    setPersagiUser(null);
+    setIsPersagi(false);
+    window.location.href = '/';
+  };
+
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'recommendation':
@@ -72,6 +96,26 @@ function AppRoot() {
         return <RecommendationPage />;
     }
   };
+
+  // PERSAGI Login/Dashboard Route
+  if (window.location.pathname.includes('/persagi')) {
+    if (checkingAuth) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="text-slate-500 font-medium">Memeriksa autentikasi...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!isPersagi) {
+      return <PersagiLoginPage onLoginSuccess={handlePersagiLogin} />;
+    }
+
+    return <PersagiDashboard onLogout={handlePersagiLogout} />;
+  }
 
   // Admin Login/Dashboard Route
   if (window.location.pathname.includes('/admin')) {
@@ -99,7 +143,7 @@ function AppRoot() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <DesktopNavbar 
         currentPage={currentPage} 
         onNavigate={handleNavigation}
@@ -113,9 +157,6 @@ function AppRoot() {
         currentPage={currentPage} 
         onNavigate={handleNavigation}
       />
-
-      {/* Floating Admin Button - Opsional, bisa dikomentari jika tidak perlu */}
-      <AdminFloatingButton />
 
       <PWABadge />
     </div>
