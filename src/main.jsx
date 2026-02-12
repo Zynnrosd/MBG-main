@@ -92,6 +92,18 @@ function AppRoot() {
         return <ConsultationPage />;
       case 'education':
         return <EducationPage />;
+      // --- PERBAIKAN DISINI ---
+      case 'login':
+        return (
+          <LoginPage 
+            onLoginSuccess={(user) => {
+              handleAdminLogin(user);
+              // Redirect ke dashboard admin setelah login sukses
+              window.location.href = '/admin'; 
+            }} 
+          />
+        );
+      // ------------------------
       default:
         return <RecommendationPage />;
     }
