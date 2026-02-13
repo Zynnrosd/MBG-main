@@ -10,7 +10,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png', 'LOGORN.png'],
-      injectRegister: false,
+      injectRegister: 'auto', // Diubah ke auto agar service worker otomatis jalan
 
       pwaAssets: {
         disabled: false,
@@ -18,8 +18,8 @@ export default defineConfig({
       },
 
       manifest: {
-        name: 'SIGAP Gizi',
-        short_name: 'SIGAP Gizi',
+        name: 'SIGAP Gizi',       // <-- Nama Aplikasi sudah benar
+        short_name: 'SIGAP Gizi', // <-- Nama di Home Screen
         description: 'Sistem Informasi Gizi Anak dan Ibu Terpadu',
         theme_color: '#2563eb',
         background_color: '#ffffff',
@@ -53,16 +53,6 @@ export default defineConfig({
         ]
       },
 
-      server: {
-        proxy: {
-          '/api-wilayah': {
-            target: 'https://wilayah.id/api',
-            changeOrigin: true,
-            rewrite: (path) => path.replace(/^\/api-wilayah/, '')
-          }
-        }
-      },
-      
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         cleanupOutdatedCaches: true,
@@ -70,11 +60,22 @@ export default defineConfig({
       },
 
       devOptions: {
-        enabled: false,
+        enabled: true, // Ubah ke true jika ingin ngetes PWA mode dev (localhost)
         navigateFallback: 'index.html',
         suppressWarnings: true,
         type: 'module',
       },
     })
   ],
+
+  // --- PERBAIKAN: Server block harus DI LUAR plugins ---
+  server: {
+    proxy: {
+      '/api-wilayah': {
+        target: 'https://wilayah.id/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-wilayah/, '')
+      }
+    }
+  }
 })

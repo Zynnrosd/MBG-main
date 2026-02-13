@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Save, X, Star, Clock, ToggleLeft, ToggleRight, Mail, Award } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Save, X, Star, Clock, Mail, Award } from 'lucide-react';
 import { supabase } from '../../config/supabase';
 import ConfirmModal from '../modals/ConfirmModal';
 
@@ -13,12 +13,12 @@ export default function DoctorsManager() {
   // State Form
   const [form, setForm] = useState({
     name: '',
-    email: '', // Menambahkan Email agar bisa login
+    email: '',
     title: '',
     specialization: '',
     experience_years: '', 
     photo_url: '',
-    is_online: false,
+    is_online: false, // Tetap ada di state untuk data internal, tapi tidak di-render inputnya
     is_active: true
   });
 
@@ -27,7 +27,6 @@ export default function DoctorsManager() {
   }, []);
 
   const loadDoctors = async () => {
-    // FIX: Gunakan tabel 'doctors'
     const { data, error } = await supabase
         .from('doctors')
         .select('*')
@@ -56,7 +55,7 @@ export default function DoctorsManager() {
         specialization: form.specialization || 'Ahli Gizi',
         experience_years: form.experience_years ? parseInt(form.experience_years) : 0, 
         photo_url: form.photo_url,
-        is_online: form.is_online,
+        // is_online: Tidak diubah manual oleh admin, ikut state terakhir (preserve)
         is_active: form.is_active
     };
 
@@ -72,9 +71,10 @@ export default function DoctorsManager() {
         errorResult = error;
       } else {
         // Mode INSERT: Insert ke tabel 'doctors'
+        // Default is_online = false untuk user baru
         const { error } = await supabase
             .from('doctors')
-            .insert([payload]);
+            .insert([{ ...payload, is_online: false }]);
         errorResult = error;
       }
       
@@ -95,7 +95,6 @@ export default function DoctorsManager() {
   const handleDelete = async () => {
     setLoading(true);
     try {
-      // FIX: Delete dari tabel 'doctors'
       const { error } = await supabase.from('doctors').delete().eq('id', deleteModal.item.id);
       if (error) throw error;
       
@@ -125,28 +124,18 @@ export default function DoctorsManager() {
       specialization: doc.specialization,
       experience_years: doc.experience_years || '',
       photo_url: doc.photo_url || '',
-      is_online: doc.is_online,
+      is_online: doc.is_online, // Simpan state asli agar tidak tertimpa
       is_active: doc.is_active
     });
     setEditing(doc);
     setShowForm(true);
   };
 
-  const toggleOnline = async (doc) => {
-      // FIX: Update status di tabel 'doctors'
-      const { error } = await supabase
-        .from('doctors')
-        .update({ is_online: !doc.is_online })
-        .eq('id', doc.id);
-      
-      if (!error) loadDoctors();
-  };
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 italic tracking-tight">Kelola Dietisien</h2>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Kelola Dietisien</h2>
           <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Daftar ahli gizi SIGAP</p>
         </div>
         <button
@@ -174,14 +163,15 @@ export default function DoctorsManager() {
                         className="w-20 h-20 rounded-[1.5rem] object-cover bg-slate-100 shadow-md"
                         onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.name)}&background=random`}
                     />
+                    {/* Indikator Online Tetap Ada (Read Only) */}
                     <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full border-4 border-white ${doc.is_online ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
                 </div>
                 
                 <div className="flex-1 min-w-0">
                   <h3 className="font-black text-slate-900 text-lg truncate">{doc.name} {doc.title && `, ${doc.title}`}</h3>
                   <div className="flex items-center gap-2 mb-1">
-                     <Mail size={10} className="text-slate-400"/>
-                     <p className="text-xs font-bold text-slate-400 truncate">{doc.email}</p>
+                      <Mail size={10} className="text-slate-400"/>
+                      <p className="text-xs font-bold text-slate-400 truncate">{doc.email}</p>
                   </div>
                   <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest bg-blue-50 inline-block px-2 py-1 rounded-lg mt-1">{doc.specialization}</p>
                   
@@ -195,9 +185,7 @@ export default function DoctorsManager() {
                   </div>
                 </div>
 
-                <button onClick={() => toggleOnline(doc)} className={`${doc.is_online ? 'text-green-500 hover:text-green-600' : 'text-slate-300 hover:text-slate-400'} transition-colors`}>
-                     {doc.is_online ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
-                </button>
+                {/* Tombol Toggle Online Dihapus Di Sini */}
               </div>
               
               <div className="flex gap-3 pt-4 border-t border-slate-50">
@@ -304,19 +292,9 @@ export default function DoctorsManager() {
                 />
               </div>
               
-              <div className="flex gap-4 pt-4">
-                <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer p-4 rounded-2xl border-2 transition-all ${form.is_online ? 'border-green-500 bg-green-50' : 'border-slate-100 bg-slate-50'}`}>
-                  <input
-                    type="checkbox"
-                    checked={form.is_online}
-                    onChange={(e) => setForm({ ...form, is_online: e.target.checked })}
-                    className="hidden"
-                  />
-                  <div className={`w-3 h-3 rounded-full ${form.is_online ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${form.is_online ? 'text-green-600' : 'text-slate-400'}`}>Set Online</span>
-                </label>
-                
-                <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer p-4 rounded-2xl border-2 transition-all ${form.is_active ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-slate-50'}`}>
+              {/* Checkbox "Set Online" DIHAPUS. Hanya sisa "Akun Aktif" */}
+              <div className="pt-4">
+                <label className={`flex items-center justify-center gap-2 cursor-pointer p-4 rounded-2xl border-2 transition-all w-full ${form.is_active ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-slate-50'}`}>
                   <input
                     type="checkbox"
                     checked={form.is_active}
@@ -324,7 +302,7 @@ export default function DoctorsManager() {
                     className="hidden"
                   />
                   <div className={`w-3 h-3 rounded-full ${form.is_active ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${form.is_active ? 'text-blue-600' : 'text-slate-400'}`}>Akun Aktif</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${form.is_active ? 'text-blue-600' : 'text-slate-400'}`}>Akun Aktif (Dapat Login)</span>
                 </label>
               </div>
             </div>

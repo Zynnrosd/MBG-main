@@ -1,73 +1,50 @@
 // src/pages/SplashScreen.jsx
-import React, { useState, useEffect } from 'react';
-import BackgroundPattern from '../components/splash/BackgroundPattern';
-import FloatingElements from '../components/splash/FloatingElements';
-import LogoContainer from '../components/splash/LogoContainer';
-import TitleSection from '../components/splash/TitleSection';
-import LoadingAnimation from '../components/splash/LoadingAnimation';
-import Footer from '../components/splash/Footer';
+import { useState, useEffect } from 'react';
+import logoUrl from '../assets/LOGORN.png';
 
 export default function SplashScreen({ onComplete }) {
   const [progress, setProgress] = useState(0);
-  const [isVisible, setIsVisible] = useState(true);
-  const [fadeIn, setFadeIn] = useState(false);
-  const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => {
-      setFadeIn(true);
-    }, 100);
-
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
           setTimeout(() => {
-            setFadeOut(true);
-            setTimeout(() => {
-              setIsVisible(false);
-              setTimeout(() => {
-                if (typeof onComplete === 'function') onComplete();
-              }, 100);
-            }, 600);
-          }, 800);
+            if (typeof onComplete === 'function') onComplete();
+          }, 100);
           return 100;
         }
-        const nextProgress = prev + 6;
-        return nextProgress > 100 ? 100 : nextProgress;
+        return prev + 5;
       });
-    }, 120);
+    }, 40);
 
     return () => clearInterval(interval);
   }, [onComplete]);
 
-  if (!isVisible) return null;
-
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-100 px-4 sm:px-6 transition-all duration-600 ease-out ${
-        !fadeIn ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-      } ${
-        fadeOut ? 'opacity-0 scale-105' : ''
-      }`}
-    >
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white">
       
-      <BackgroundPattern fadeOut={fadeOut} />
-      <FloatingElements fadeOut={fadeOut} />
-      
-      <div className={`relative z-10 flex flex-col items-center justify-center max-w-xs sm:max-w-lg w-full transition-all duration-800 ${
-        !fadeIn ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'
-      } ${
-        fadeOut ? 'opacity-0 -translate-y-8' : ''
-      }`}>
-        
-        <LogoContainer />
-        <TitleSection fadeIn={fadeIn} />
-        <LoadingAnimation fadeIn={fadeIn} progress={progress} />
-        
+      {/* Logo */}
+      <img 
+        src={logoUrl} 
+        alt="SIGAP Gizi"
+        className="w-20 h-20 object-contain mb-6"
+      />
+
+      {/* App Name */}
+      <h1 className="text-2xl font-black text-slate-900 mb-12">
+        SIGAP <span className="text-blue-600">Gizi.</span>
+      </h1>
+
+      {/* Progress Bar */}
+      <div className="w-48 h-1 bg-slate-200 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-blue-600 transition-all duration-200"
+          style={{ width: `${progress}%` }}
+        />
       </div>
 
-      <Footer fadeOut={fadeOut} fadeIn={fadeIn} />
     </div>
   );
 }

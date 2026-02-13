@@ -3,26 +3,16 @@ import { Calendar, MapPin, MessageSquare, Send, Star, ChevronDown, ChevronUp, Fi
 import { supabase } from '../config/supabase';
 
 export default function SchedulePage() {
-  // State Filter
   const [category, setCategory] = useState('anak');
-  const [role, setRole] = useState('anak'); // Mapping category ke role database
-
-  // Data Master (Semua Dapur)
   const [allKitchens, setAllKitchens] = useState([]);
-
-  // State Dropdown
   const [selectedProvince, setSelectedProvince] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('');
-  const [selectedSppg, setSelectedSppg] = useState(''); // ID Dapur
-
-  // List Opsi Dropdown (Dihitung otomatis dari data dapur)
+  const [selectedSppg, setSelectedSppg] = useState('');
   const [provinceOptions, setProvinceOptions] = useState([]);
   const [cityOptions, setCityOptions] = useState([]);
   const [districtOptions, setDistrictOptions] = useState([]);
   const [kitchenOptions, setKitchenOptions] = useState([]);
-
-  // Data Menu & Feedback
   const [menu, setMenu] = useState(null);
   const [feedback, setFeedback] = useState('');
   const [feedbackName, setFeedbackName] = useState('');
@@ -31,14 +21,11 @@ export default function SchedulePage() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // --- LOGIC BARU: Load Semua Dapur Sekaligus ---
   useEffect(() => {
     async function fetchKitchens() {
-      // Ambil semua data lokasi dapur
       const { data } = await supabase.from('kitchen_locations').select('*');
       if (data) {
         setAllKitchens(data);
-        // Ekstrak Provinsi Unik untuk Dropdown Pertama
         const uniqueProvs = [...new Map(data.map(item => [item.province_code, {code: item.province_code, name: item.province_name}])).values()];
         setProvinceOptions(uniqueProvs);
       }
@@ -46,9 +33,6 @@ export default function SchedulePage() {
     fetchKitchens();
   }, []);
 
-  // --- LOGIC BARU: Filter Berjenjang (Client Side) ---
-  
-  // 1. Filter Kota berdasarkan Provinsi
   useEffect(() => {
     if (selectedProvince) {
         const filtered = allKitchens.filter(k => k.province_code === selectedProvince);
@@ -62,7 +46,6 @@ export default function SchedulePage() {
     }
   }, [selectedProvince]);
 
-  // 2. Filter Kecamatan berdasarkan Kota
   useEffect(() => {
     if (selectedCity) {
         const filtered = allKitchens.filter(k => k.city_code === selectedCity);
@@ -75,28 +58,24 @@ export default function SchedulePage() {
     }
   }, [selectedCity]);
 
-  // 3. Filter Dapur (SPPG) berdasarkan Kecamatan
   useEffect(() => {
     if (selectedDistrict) {
         const filtered = allKitchens.filter(k => k.district_code === selectedDistrict);
-        setKitchenOptions(filtered); // Isi dropdown SPPG
+        setKitchenOptions(filtered);
         setSelectedSppg('');
     } else {
         setKitchenOptions([]);
     }
   }, [selectedDistrict]);
 
-  // 4. Load Menu & Feedback saat Dapur/Kategori berubah
   useEffect(() => {
     if (selectedSppg) {
       loadMenu(selectedSppg, category);
       loadFeedback(selectedSppg);
     } else {
-        setMenu(null); // Reset menu jika dapur di-unselect
+        setMenu(null);
     }
   }, [selectedSppg, category]);
-
-  // --- FUNGSI LOAD DATA DATABASE ---
 
   const loadMenu = async (kitchenId, menuCategory) => {
     setLoading(true);
@@ -104,15 +83,14 @@ export default function SchedulePage() {
       const { data } = await supabase
         .from('daily_menus')
         .select('*')
-        .eq('kitchen_id', kitchenId) // Pakai kitchen_id, bukan sppg_id
-        .eq('role_category', menuCategory) // Pakai role_category
-        .order('menu_date', { ascending: false }) // Ambil tanggal terbaru
+        .eq('kitchen_id', kitchenId)
+        .eq('role_category', menuCategory)
+        .order('menu_date', { ascending: false })
         .limit(1)
         .single();
         
       setMenu(data || null);
     } catch (error) {
-      // console.error('Error loading menu:', error); // Silent error jika null
       setMenu(null);
     } finally {
       setLoading(false);
@@ -120,11 +98,9 @@ export default function SchedulePage() {
   };
 
   const loadFeedback = async (kitchenId) => {
-    // Note: Pastikan tabel menu_feedback punya kolom kitchen_id atau menu_id
-    // Disini kita asumsi ambil feedback berdasarkan menu yang tampil, atau history dapur
     const { data } = await supabase
       .from('menu_feedback')
-      .select(`*, daily_menus!inner(kitchen_id)`) // Join untuk filter by kitchen
+      .select(`*, daily_menus!inner(kitchen_id)`)
       .eq('daily_menus.kitchen_id', kitchenId)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -137,9 +113,9 @@ export default function SchedulePage() {
     if (!feedback.trim() || !menu || !feedbackName.trim()) return;
 
     const { error } = await supabase.from('menu_feedback').insert([{
-      menu_id: menu.id, // Relasi ke ID Menu spesifik
-      user_name: feedbackName, // Sesuaikan nama kolom di DB baru (user_name)
-      comment_text: feedback, // Sesuaikan nama kolom di DB baru (comment_text)
+      menu_id: menu.id,
+      user_name: feedbackName,
+      comment_text: feedback,
       rating: feedbackRating
     }]);
 
@@ -160,29 +136,31 @@ export default function SchedulePage() {
     });
   };
 
-  // --- RENDER UI (SAMA PERSIS DENGAN KODE ANDA) ---
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6 pb-32 min-h-screen bg-white">
-      <header className="space-y-4">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Jadwal MBG Harian</h1>
-        <p className="text-slate-500 font-medium">Lihat menu harian dan berikan feedback</p>
-
-        {/* Category Selection */}
-        <div className="grid grid-cols-3 gap-3">
-          <button onClick={() => setCategory('anak')} className={`p-4 rounded-2xl border-2 transition-all ${category === 'anak' ? 'bg-blue-600 border-blue-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-600'}`}>
-            <p className="font-bold">👶 Anak</p>
-          </button>
-          <button onClick={() => setCategory('ibu_hamil')} className={`p-4 rounded-2xl border-2 transition-all ${category === 'ibu_hamil' ? 'bg-pink-600 border-pink-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-600'}`}>
-            <p className="font-bold">🤰 Ibu Hamil</p>
-          </button>
-          <button onClick={() => setCategory('ibu_menyusui')} className={`p-4 rounded-2xl border-2 transition-all ${category === 'ibu_menyusui' ? 'bg-purple-600 border-purple-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-600'}`}>
-            <p className="font-bold">🤱 Ibu Menyusui</p>
-          </button>
+    <div className="max-w-3xl mx-auto p-6 space-y-8 pb-32 min-h-screen bg-white">
+      <header className="space-y-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
+          <Calendar size={12} fill="currentColor" /> Daily Schedule
         </div>
+        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+          Jadwal <span className="text-blue-600">Menu.</span>
+        </h1>
+        <p className="text-slate-500 font-medium">Lihat menu harian dan berikan feedback untuk perbaikan.</p>
       </header>
 
-      {/* Location Filters */}
-      <div className="space-y-4 bg-slate-50 rounded-3xl p-6 border border-slate-100">
+      <div className="grid grid-cols-3 gap-3">
+        <button onClick={() => setCategory('anak')} className={`p-4 rounded-2xl border-2 transition-all ${category === 'anak' ? 'bg-blue-600 border-blue-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-600'}`}>
+          <p className="font-bold">👶 Anak</p>
+        </button>
+        <button onClick={() => setCategory('ibu_hamil')} className={`p-4 rounded-2xl border-2 transition-all ${category === 'ibu_hamil' ? 'bg-pink-600 border-pink-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-600'}`}>
+          <p className="font-bold">🤰 Ibu Hamil</p>
+        </button>
+        <button onClick={() => setCategory('ibu_menyusui')} className={`p-4 rounded-2xl border-2 transition-all ${category === 'ibu_menyusui' ? 'bg-purple-600 border-purple-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-600'}`}>
+          <p className="font-bold">🤱 Ibu Menyusui</p>
+        </button>
+      </div>
+
+      <div className="space-y-4 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100">
         <h3 className="font-bold text-slate-800 flex items-center gap-2">
           <MapPin className="text-blue-600" size={20} />
           Pilih Lokasi SPPG
@@ -233,11 +211,10 @@ export default function SchedulePage() {
         )}
       </div>
 
-      {/* Menu Display */}
       {loading && (
         <div className="text-center py-12">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-slate-500 mt-4">Memuat menu...</p>
+          <p className="text-slate-500 mt-4 font-medium">Memuat menu...</p>
         </div>
       )}
 
@@ -260,7 +237,6 @@ export default function SchedulePage() {
               <p className="text-sm text-slate-500 mt-1">{menu.description}</p>
             </div>
 
-            {/* DETAIL KOMPONEN MAKANAN */}
             <div className="space-y-3">
               <h4 className="font-bold text-slate-700 text-sm">Detail Komponen:</h4>
               
@@ -343,7 +319,6 @@ export default function SchedulePage() {
               )}
             </div>
 
-            {/* KANDUNGAN GIZI */}
             <div className="pt-4 border-t border-slate-100">
               <h4 className="font-bold text-slate-700 mb-3 text-sm">Kandungan Gizi Total:</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -358,7 +333,6 @@ export default function SchedulePage() {
               </div>
             </div>
 
-            {/* FEEDBACK TOGGLE BUTTON */}
             <div className="pt-4 border-t border-slate-100">
               <button
                 onClick={() => setShowFeedback(!showFeedback)}
@@ -374,10 +348,8 @@ export default function SchedulePage() {
                 {showFeedback ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
               </button>
 
-              {/* EXPANDABLE FEEDBACK SECTION */}
               {showFeedback && (
                 <div className="mt-4 space-y-4 animate-in slide-in-from-top duration-300">
-                  {/* FORM FEEDBACK */}
                   <div className="bg-gradient-to-br from-white to-blue-50/30 border-2 border-blue-100 rounded-2xl p-6">
                     <h4 className="font-bold text-slate-800 mb-4">Berikan Feedback Anda</h4>
                     
@@ -426,7 +398,6 @@ export default function SchedulePage() {
                     </form>
                   </div>
 
-                  {/* FEEDBACK LIST */}
                   {feedbackList.length > 0 && (
                     <div className="space-y-3">
                       {feedbackList.map((fb) => (
@@ -471,8 +442,8 @@ export default function SchedulePage() {
       
       {!selectedSppg && (
           <div className="text-center py-20 opacity-50">
-              <Filter className="w-16 h-16 mx-auto mb-4"/>
-              <p>Pilih lokasi di atas untuk melihat menu.</p>
+              <Filter className="w-16 h-16 text-slate-300 mx-auto mb-4"/>
+              <p className="text-slate-500 font-medium">Pilih lokasi di atas untuk melihat menu.</p>
           </div>
       )}
     </div>

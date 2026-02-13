@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Clock, User, Search, Send, LogOut, CheckCircle, MoreVertical, Bell } from 'lucide-react';
+import { MessageSquare, User, Search, Send, LogOut, CheckCircle, Stethoscope, Power } from 'lucide-react';
 import { supabase } from '../../config/supabase';
 
 export default function PersagiDashboard({ onLogout, user }) {
@@ -9,11 +9,28 @@ export default function PersagiDashboard({ onLogout, user }) {
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  
+  // --- STATE BARU: STATUS ONLINE/OFFLINE ---
+  const [isOnline, setIsOnline] = useState(false);
+  
   const messagesEndRef = useRef(null);
 
-  // 1. Load Sesi & Realtime Antrean (Sidebar)
+  // 1. Initial Load (Status Dokter & Sesi)
   useEffect(() => {
     if (!user?.id) return;
+
+    // A. Ambil status Online/Offline saat ini
+    const fetchStatus = async () => {
+        const { data } = await supabase
+            .from('doctors')
+            .select('is_online')
+            .eq('id', user.id)
+            .single();
+        if (data) setIsOnline(data.is_online);
+    };
+    fetchStatus();
+
+    // B. Load Sesi
     loadSessions();
 
     const sessionSub = supabase
@@ -31,7 +48,7 @@ export default function PersagiDashboard({ onLogout, user }) {
     return () => { supabase.removeChannel(sessionSub); };
   }, [user]);
 
-  // 2. Load Pesan & Realtime Chat (Main Content)
+  // 2. Load Pesan & Realtime Chat
   useEffect(() => {
     if (selectedSession) {
       loadMessages(selectedSession.id);
@@ -45,7 +62,6 @@ export default function PersagiDashboard({ onLogout, user }) {
           filter: `session_id=eq.${selectedSession.id}`
         }, (payload) => {
           setMessages(curr => {
-            // PENTING: Cek duplikasi ID agar tidak muncul 2x
             if (curr.find(m => m.id === payload.new.id)) return curr;
             return [...curr, payload.new];
           });
@@ -56,10 +72,26 @@ export default function PersagiDashboard({ onLogout, user }) {
     }
   }, [selectedSession]);
 
-  // Auto scroll ke bawah saat ada pesan baru
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // --- FUNGSI BARU: TOGGLE STATUS ---
+  const toggleOnlineStatus = async () => {
+      const newStatus = !isOnline;
+      setIsOnline(newStatus); // Ubah UI dulu (Optimistic)
+
+      const { error } = await supabase
+        .from('doctors')
+        .update({ is_online: newStatus })
+        .eq('id', user.id);
+
+      if (error) {
+          console.error("Gagal update status:", error);
+          setIsOnline(!newStatus); // Balikin jika gagal
+          alert("Gagal mengubah status koneksi.");
+      }
+  };
 
   const loadSessions = async () => {
     setLoading(true);
@@ -96,36 +128,32 @@ export default function PersagiDashboard({ onLogout, user }) {
     }
   };
 
-const handleSendMessage = async (e) => {
-  e.preventDefault();
-  if (!newMessage.trim() || !selectedSession) return;
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedSession) return;
 
-  const text = newMessage;
-  setNewMessage(''); // 1. Kosongkan input segera
+    const text = newMessage;
+    setNewMessage('');
 
-  // 2. Insert ke DB dan MINTA DATA KEMBALI (.select())
-  const { data: sentMsg, error } = await supabase
-    .from('messages')
-    .insert([{
-      session_id: selectedSession.id,
-      sender_id: user.id,
-      receiver_id: selectedSession.user_guest_id,
-      content: text
-    }])
-    .select() // <--- KUNCI: Minta ID asli dari database
-    .single();
+    const { data: sentMsg, error } = await supabase
+      .from('messages')
+      .insert([{
+        session_id: selectedSession.id,
+        sender_id: user.id,
+        receiver_id: selectedSession.user_guest_id,
+        content: text
+      }])
+      .select()
+      .single();
 
-  if (error) {
-      console.error("Gagal kirim:", error);
-      alert("Gagal mengirim pesan");
-      setNewMessage(text); // Kembalikan teks jika gagal
-  } else if (sentMsg) {
-      // 3. Masukkan ke layar menggunakan ID ASLI dari database
-      // Ini membuat pesan langsung muncul (Cepat)
-      // Dan saat Realtime masuk nanti, dia akan dianggap duplikat (karena ID sama) dan diabaikan.
-      setMessages(prev => [...prev, sentMsg]);
-  }
-};
+    if (error) {
+        console.error("Gagal kirim:", error);
+        alert("Gagal mengirim pesan");
+        setNewMessage(text);
+    } else if (sentMsg) {
+        setMessages(prev => [...prev, sentMsg]);
+    }
+  };
 
   const handleCloseSession = async () => {
       if(!selectedSession) return;
@@ -146,18 +174,34 @@ const handleSendMessage = async (e) => {
   );
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
+    <div className="flex h-screen bg-white font-sans overflow-hidden">
       
       {/* SIDEBAR */}
       <div className="w-96 bg-white border-r border-slate-100 flex flex-col shadow-sm z-10">
         <div className="p-8 border-b border-slate-50">
+          
+          {/* PROFILE HEADER + STATUS SWITCH */}
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-blue-600 rounded-[1.2rem] flex items-center justify-center text-white font-black shadow-lg shadow-blue-200">
+            <div className="w-12 h-12 bg-blue-600 rounded-[1.2rem] flex items-center justify-center text-white font-black shadow-lg shadow-blue-200 shrink-0">
                {user?.name?.charAt(0) || 'D'}
             </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 italic tracking-tight">SIGAP <span className="text-blue-600">Gizi.</span></h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dashboard Dietisien</p>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-black text-slate-900 tracking-tight truncate">
+                {user?.name}
+              </h1>
+              
+              {/* TOMBOL STATUS BARU */}
+              <button 
+                onClick={toggleOnlineStatus}
+                className={`mt-1 flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 ${
+                    isOnline 
+                    ? 'bg-green-100 text-green-600 hover:bg-green-200 ring-1 ring-green-200' 
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 ring-1 ring-slate-200'
+                }`}
+              >
+                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}></div>
+                {isOnline ? 'ONLINE' : 'OFFLINE'}
+              </button>
             </div>
           </div>
 
@@ -264,7 +308,6 @@ const handleSendMessage = async (e) => {
               </div>
               
               {messages.map(msg => {
-                // SAFETY CHECK: Pastikan user dan msg.sender_id ada sebelum dibandingkan
                 const isMe = user?.id && msg?.sender_id && (msg.sender_id === user.id);
                 
                 return (
@@ -313,12 +356,22 @@ const handleSendMessage = async (e) => {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 space-y-6">
             <div className="w-32 h-32 bg-white rounded-[3rem] flex items-center justify-center shadow-sm border border-slate-100 relative">
-               <MessageSquare className="w-12 h-12 text-slate-200" />
+               <Stethoscope className="w-12 h-12 text-slate-200" />
                <div className="absolute -top-2 -right-2 w-8 h-8 bg-blue-500 rounded-full animate-bounce"></div>
             </div>
             <div>
                 <h3 className="text-2xl font-black text-slate-900 italic">Selamat Bertugas, {user?.name || 'Ahli Gizi'}</h3>
-                <p className="text-slate-400 font-bold uppercase text-xs tracking-widest mt-2">Pilih antrean di sebelah kiri untuk memulai chat</p>
+                <p className="text-slate-400 font-bold uppercase text-xs tracking-widest mt-2 mb-6">Pilih antrean di sebelah kiri untuk memulai chat</p>
+                
+                {/* BIG STATUS INDICATOR (UNTUK KEJELASAN) */}
+                <div className={`inline-flex items-center gap-3 px-6 py-4 rounded-3xl transition-all ${
+                    isOnline 
+                    ? 'bg-green-50 border border-green-100 text-green-700' 
+                    : 'bg-slate-50 border border-slate-100 text-slate-500'
+                }`}>
+                    <Power size={20} className={isOnline ? 'fill-green-600' : ''} />
+                    <span className="font-bold text-sm">Status Anda Saat Ini: {isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+                </div>
             </div>
           </div>
         )}

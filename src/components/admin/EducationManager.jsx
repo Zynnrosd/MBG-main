@@ -121,7 +121,7 @@ export default function EducationManager() {
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-        <h2 className="text-lg font-bold text-slate-800">Manajemen Edukasi</h2>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Manajemen Edukasi</h2>
         <button
           onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"

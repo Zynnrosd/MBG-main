@@ -148,8 +148,8 @@ export default function LocationsManager() {
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Lokasi Dapur</h2>
-            <p className="text-sm text-slate-500">Kelola titik dapur pusat MBG per kecamatan</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Lokasi Dapur</h2>
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Kelola titik dapur pusat MBG per kecamatan</p>
          </div>
          <button onClick={()=>setIsFormOpen(true)} className="bg-blue-600 text-white px-5 py-3 rounded-xl flex gap-2 font-bold hover:bg-blue-700 transition">
             <Plus size={20}/> Tambah Dapur

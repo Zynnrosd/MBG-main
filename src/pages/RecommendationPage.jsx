@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Calculator, RefreshCw, ArrowRight, User, Info, Zap, Heart, AlertCircle, CheckCircle2, Flame, Apple, Droplet, ClipboardList } from 'lucide-react';
+import { Calculator, RefreshCw, ArrowRight, User, Info, Shield, Heart, AlertCircle, CheckCircle2, Flame, Apple, Droplet, ClipboardList } from 'lucide-react';
 
 export default function RecommendationPage() {
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState('child');
-  const [formData, setFormData] = useState({ age: '', weight: '', height: '', trimester: '1', breastfeedingAge: '0-6' });
+  
+  // State lengkap termasuk prePregnancyWeight
+  const [formData, setFormData] = useState({ 
+    age: '', 
+    weight: '', 
+    height: '', 
+    prePregnancyWeight: '', 
+    trimester: '1', 
+    breastfeedingAge: '0-6' 
+  });
+  
   const [assessment, setAssessment] = useState({ q1: null, q2: null, q3: null, q4: null, q5: null, q6: null, q7: null, q8: null, q9: null, q10: null, q11: null });
   const [recommendation, setRecommendation] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [menuDatabase, setMenuDatabase] = useState([]); // Array satuan dari JSON
+  const [menuDatabase, setMenuDatabase] = useState([]);
 
   useEffect(() => {
     fetch('/data/nutrition.json')
@@ -37,17 +47,29 @@ export default function RecommendationPage() {
     { id: 'q11', text: 'Apakah Anda pernah mengalami infeksi cacing dalam 6 bulan terakhir?', reverse: false }
   ];
 
-  // --- LOGIC CALCULATOR GIZI ---
+  // --- LOGIC PERHITUNGAN (VALIDASI KEMENKES) ---
   const calculateNeeds = () => {
-    const weight = parseFloat(formData.weight);
+    // Gunakan BB Pra-hamil untuk BMR Ibu Hamil, BB Saat Ini untuk yang lain
+    const baseWeight = category === 'pregnant' 
+        ? parseFloat(formData.prePregnancyWeight) 
+        : parseFloat(formData.weight);
+        
     const height = parseFloat(formData.height);
     const age = parseFloat(formData.age) || 30;
+    
+    // BMR Harris-Benedict
     let bmr = category === 'child' 
-      ? 66.5 + (13.75 * weight) + (5.003 * height) - (6.75 * age)
-      : 655.1 + (9.563 * weight) + (1.850 * height) - (4.676 * age);
-    let totalCalories = bmr * 1.3;
-    if (category === 'pregnant') totalCalories += (formData.trimester === '1' ? 180 : 300);
-    else if (category === 'breastfeeding') totalCalories += 330;
+      ? 66.5 + (13.75 * baseWeight) + (5.003 * height) - (6.75 * age)
+      : 655.1 + (9.563 * baseWeight) + (1.850 * height) - (4.676 * age);
+    
+    let totalCalories = bmr * 1.3; // Faktor Aktivitas Sedang
+
+    // Penambahan Energi AKG 2019
+    if (category === 'pregnant') {
+        totalCalories += (formData.trimester === '1' ? 180 : 300);
+    } else if (category === 'breastfeeding') {
+        totalCalories += 330;
+    }
 
     return {
         daily: Math.round(totalCalories),
@@ -56,90 +78,51 @@ export default function RecommendationPage() {
     };
   };
 
-  // ================================
-// GENERATE BEST COMBINED MENU
-// ================================
-// =======================================
-// GENERATE BEST COMBINED MENU (INDO FIX)
-// =======================================
-const generateCombinedMenu = (targetCalories) => {
-  if (!menuDatabase || menuDatabase.length === 0) return null;
+  const generateCombinedMenu = (targetCalories) => {
+    if (!menuDatabase || menuDatabase.length === 0) return null;
 
-  // 1️⃣ KARBO – hanya yang umum di Indonesia
-  const carbs = menuDatabase.filter(item =>
-    /nasi|kentang|mie/i.test(item.name)
-  );
+    const carbs = menuDatabase.filter(item => /nasi|kentang|mie/i.test(item.name));
+    const veggies = menuDatabase.filter(item => /sayur|bayam|kangkung|sawi|capcay|wortel|brokoli|buncis|sop/i.test(item.name));
+    const proteins = menuDatabase.filter(item => /ayam|ikan|telur|daging|tahu|tempe|udang|hati/i.test(item.name) && !/nasi|kentang|mie/i.test(item.name));
 
-  // 2️⃣ SAYUR – sayur umum Indonesia
-  const veggies = menuDatabase.filter(item =>
-    /sayur|bayam|kangkung|sawi|capcay|wortel|brokoli|buncis|sop/i.test(item.name)
-  );
+    if (carbs.length === 0 || veggies.length === 0 || proteins.length === 0) return null;
 
-  // 3️⃣ LAUK – lauk umum Indonesia
-  const proteins = menuDatabase.filter(item =>
-    /ayam|ikan|telur|daging|tahu|tempe|udang|hati/i.test(item.name) &&
-    !/nasi|kentang|mie/i.test(item.name)
-  );
+    let bestCombo = null;
+    let smallestDiff = Infinity;
 
-  // Jika salah satu kategori kosong
-  if (carbs.length === 0 || veggies.length === 0 || proteins.length === 0) {
-    return null;
-  }
+    for (let c of carbs) {
+      for (let v of veggies) {
+        for (let p of proteins) {
+          const totalCalories = (c.calories || 0) + (v.calories || 0) + (p.calories || 0);
+          const diff = Math.abs(totalCalories - targetCalories);
 
-  let bestCombo = null;
-  let smallestDiff = Infinity;
-
-  // 4️⃣ Loop semua kombinasi
-  for (let c of carbs) {
-    for (let v of veggies) {
-      for (let p of proteins) {
-
-        const totalCalories =
-          (c.calories || 0) +
-          (v.calories || 0) +
-          (p.calories || 0);
-
-        const diff = Math.abs(totalCalories - targetCalories);
-
-        if (diff < smallestDiff) {
-          smallestDiff = diff;
-
-          bestCombo = {
-            name: `${c.name} + ${v.name} + ${p.name}`,
-            recipe: [c.name, v.name, p.name],
-            nutrition: {
-              calories: Math.round(totalCalories),
-              proteins: Math.round(
-                (c.proteins || 0) +
-                (v.proteins || 0) +
-                (p.proteins || 0)
-              ),
-              fat: Math.round(
-                (c.fat || 0) +
-                (v.fat || 0) +
-                (p.fat || 0)
-              ),
-              carbohydrate: Math.round(
-                (c.carbohydrate || 0) +
-                (v.carbohydrate || 0) +
-                (p.carbohydrate || 0)
-              )
-            }
-          };
+          if (diff < smallestDiff) {
+            smallestDiff = diff;
+            bestCombo = {
+              name: `${c.name} + ${v.name} + ${p.name}`,
+              recipe: [c.name, v.name, p.name],
+              nutrition: {
+                calories: Math.round(totalCalories),
+                proteins: Math.round((c.proteins || 0) + (v.proteins || 0) + (p.proteins || 0)),
+                fat: Math.round((c.fat || 0) + (v.fat || 0) + (p.fat || 0)),
+                carbohydrate: Math.round((c.carbohydrate || 0) + (v.carbohydrate || 0) + (p.carbohydrate || 0))
+              }
+            };
+          }
         }
       }
     }
-  }
-
-  return bestCombo;
-};
-
-
+    return bestCombo;
+  };
 
   const calculateIMT = () => {
-    const weight = parseFloat(formData.weight);
+    // IMT: Gunakan BB Pra-hamil untuk Ibu Hamil
+    const weightToUse = category === 'pregnant' 
+        ? parseFloat(formData.prePregnancyWeight) 
+        : parseFloat(formData.weight);
+    
     const height = parseFloat(formData.height) / 100;
-    return weight / (height * height);
+    return weightToUse / (height * height);
   };
 
   const getIMTStatus = (imt) => {
@@ -148,9 +131,10 @@ const generateCombinedMenu = (targetCalories) => {
       if (imt < 18.5) return { status: 'Gizi Baik', color: 'green' };
       return { status: 'Gizi Lebih', color: 'orange' };
     }
-    if (imt < 18.5) return { status: 'Kurus', color: 'yellow' };
+    // Standar Dewasa Kemenkes
+    if (imt < 18.5) return { status: 'Kurus (KEK)', color: 'yellow' };
     if (imt < 25) return { status: 'Normal', color: 'green' };
-    if (imt < 30) return { status: 'Gemuk', color: 'orange' };
+    if (imt < 27) return { status: 'Gemuk', color: 'orange' };
     return { status: 'Obesitas', color: 'red' };
   };
 
@@ -177,15 +161,30 @@ const generateCombinedMenu = (targetCalories) => {
       const needs = calculateNeeds();
       const breakfastMenu = generateCombinedMenu(needs.breakfast);
       const dinnerMenu = generateCombinedMenu(needs.dinner);
+      
+      // LOGIC TTD DINAMIS (Anti Ngawur)
+      const riskResult = calculateAnemiaRisk();
+      let ttdAdvice = '';
+      
+      if (category === 'pregnant') {
+        if (riskResult.risk) ttdAdvice = 'Segera Cek Hb ke Dokter (Indikasi Dosis Terapi)';
+        else ttdAdvice = '1 tablet/hari (Min. 90 tablet selama hamil)';
+      } else if (category === 'child') {
+        if (riskResult.risk) ttdAdvice = '1 tablet/minggu + Periksa ke Puskesmas';
+        else ttdAdvice = '1 tablet/minggu (Program Rematri)';
+      } else { // Breastfeeding
+        if (riskResult.risk) ttdAdvice = '1 tablet/hari + Konsultasi Dokter';
+        else ttdAdvice = '1 tablet/hari (Selama masa nifas/42 hari)';
+      }
 
       setRecommendation({
         imt: imt.toFixed(1),
         imtStatus: getIMTStatus(imt),
-        anemiaRisk: calculateAnemiaRisk(),
+        anemiaRisk: riskResult,
         needs: needs,
         breakfast: breakfastMenu,
         dinner: dinnerMenu,
-        ttdFrequency: category === 'pregnant' ? '1 tablet/hari' : category === 'child' ? '1 tablet/minggu (Rematri)' : 'Sesuai anjuran',
+        ttdFrequency: ttdAdvice,
         ironRichFoods: ['Hati ayam', 'Daging sapi', 'Ikan kembung', 'Bayam', 'Kacang hijau'],
         folatRichFoods: ['Bayam', 'Brokoli', 'Kacang merah', 'Jeruk', 'Alpukat'],
         vitCRichFoods: ['Jeruk', 'Tomat', 'Jambu biji', 'Paprika', 'Strawberry']
@@ -197,7 +196,7 @@ const generateCombinedMenu = (targetCalories) => {
 
   const resetForm = () => {
     setStep(1);
-    setFormData({ age: '', weight: '', height: '', trimester: '1', breastfeedingAge: '0-6' });
+    setFormData({ age: '', weight: '', height: '', prePregnancyWeight: '', trimester: '1', breastfeedingAge: '0-6' });
     setAssessment({ q1: null, q2: null, q3: null, q4: null, q5: null, q6: null, q7: null, q8: null, q9: null, q10: null, q11: null });
     setRecommendation(null);
   };
@@ -205,15 +204,17 @@ const generateCombinedMenu = (targetCalories) => {
   const currentCategory = categories.find(c => c.id === category);
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8 pb-32 min-h-screen bg-[#F8FAFC]">
-      <header className="space-y-4">
+    <div className="max-w-2xl mx-auto p-6 space-y-8 pb-32 min-h-screen bg-white">
+      <header className="space-y-2">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
-          <Zap size={12} fill="currentColor" /> Nutrition Assistant
+          <Shield size={12} fill="currentColor" /> Nutrition Assistant
         </div>
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Rekomendasi <span className="text-blue-600">Gizi.</span></h1>
+        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+          Rekomendasi <span className="text-blue-600">Gizi.</span>
+        </h1>
+        <p className="text-slate-500 font-medium">Analisis kebutuhan gizi personal untuk tumbuh kembang optimal.</p>
       </header>
 
-      {/* STEP 1: PILIH KATEGORI */}
       {step === 1 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <p className="text-slate-600 font-medium">Pilih kategori untuk memulai:</p>
@@ -238,7 +239,6 @@ const generateCombinedMenu = (targetCalories) => {
         </div>
       )}
 
-      {/* STEP 2: DATA FISIK */}
       {step === 2 && (
         <form onSubmit={(e) => { e.preventDefault(); setStep(3); }} className="space-y-6 animate-in fade-in duration-500">
           <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-6">
@@ -248,6 +248,7 @@ const generateCombinedMenu = (targetCalories) => {
               </div>
               Data Fisik
             </h3>
+            
             {category === 'child' && (
               <div className="grid grid-cols-3 gap-4">
                 {['age', 'weight', 'height'].map(key => (
@@ -260,13 +261,14 @@ const generateCombinedMenu = (targetCalories) => {
                 ))}
               </div>
             )}
+
             {category === 'pregnant' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Berat Badan</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">BB Sblm Hamil</label>
                     <input type="number" step="0.1" placeholder="Kg" className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 transition-all outline-none" 
-                      required value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} />
+                      required value={formData.prePregnancyWeight} onChange={e => setFormData({...formData, prePregnancyWeight: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Tinggi Badan</label>
@@ -285,6 +287,7 @@ const generateCombinedMenu = (targetCalories) => {
                 </div>
               </div>
             )}
+
             {category === 'breastfeeding' && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -306,7 +309,6 @@ const generateCombinedMenu = (targetCalories) => {
         </form>
       )}
 
-      {/* STEP 3: ASESMEN ANEMIA */}
       {step === 3 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-6">
@@ -344,7 +346,6 @@ const generateCombinedMenu = (targetCalories) => {
         </div>
       )}
 
-      {/* STEP 4: HASIL (DATA DARI JSON & KALKULATOR) */}
       {step === 4 && recommendation && (
         <div className="space-y-6 animate-in slide-in-from-bottom-10 duration-700">
           
@@ -374,7 +375,6 @@ const generateCombinedMenu = (targetCalories) => {
             </div>
           </div>
 
-          {/* SARAPAN */}
           <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-[2.5rem] p-8 border border-orange-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white"><Flame size={24} /></div>
@@ -426,7 +426,6 @@ const generateCombinedMenu = (targetCalories) => {
             )}
           </div>
 
-          {/* MAKAN MALAM */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[2.5rem] p-8 border border-blue-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-white"><Apple size={24} /></div>
@@ -513,7 +512,7 @@ const generateCombinedMenu = (targetCalories) => {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-bold text-yellow-600 uppercase mb-2">Vitamin C (Bantu Serap Besi)</p>
+                <p className="text-xs font-bold text-yellow-600 uppercase mb-2">Vitamin C</p>
                 <div className="flex flex-wrap gap-2">
                   {recommendation.vitCRichFoods.map((food, i) => (
                     <span key={i} className="px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-xs font-medium">{food}</span>

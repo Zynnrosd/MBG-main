@@ -122,8 +122,8 @@ export default function MenusManager() {
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-20 z-10">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Manajemen Menu</h2>
-                <p className="text-sm text-slate-500">Kelola menu per lokasi dapur & target</p>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Manajemen Menu</h2>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Kelola menu per lokasi dapur & target</p>
              </div>
              
              {/* Tombol Tambah Menu (Hanya aktif jika dapur dipilih) */}
