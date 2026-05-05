@@ -4,8 +4,6 @@ import { Calculator, RefreshCw, ArrowRight, User, Info, Shield, Heart, AlertCirc
 export default function RecommendationPage() {
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState('child');
-  
-  // State lengkap termasuk prePregnancyWeight
   const [formData, setFormData] = useState({ 
     age: '', 
     weight: '', 
@@ -14,7 +12,6 @@ export default function RecommendationPage() {
     trimester: '1', 
     breastfeedingAge: '0-6' 
   });
-  
   const [assessment, setAssessment] = useState({ q1: null, q2: null, q3: null, q4: null, q5: null, q6: null, q7: null, q8: null, q9: null, q10: null, q11: null });
   const [recommendation, setRecommendation] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +21,7 @@ export default function RecommendationPage() {
     fetch('/data/nutrition.json')
       .then(res => res.json())
       .then(data => setMenuDatabase(data))
-      .catch(err => console.error("Error loading nutrition data:", err));
+      .catch(() => setMenuDatabase([]));
   }, []);
 
   const categories = [
@@ -40,501 +37,182 @@ export default function RecommendationPage() {
     { id: 'q4', text: 'Apakah bagian dalam kelopak mata atau bibir Anda terlihat pucat?', reverse: false },
     { id: 'q5', text: 'Apakah Anda mengalami kerontokan rambut berlebih atau kuku mudah rapuh?', reverse: false },
     { id: 'q6', text: 'Apakah Anda sering melewatkan sarapan?', reverse: false },
-    { id: 'q7', text: 'Apakah Anda sering minum teh atau kopi bersamaan atau segera setelah makan?', reverse: false },
-    { id: 'q8', text: 'Apakah Anda rutin mengonsumsi suplemen zat besi, tablet tambah darah, atau multivitamin yang mengandung zat besi?', reverse: true },
-    { id: 'q9', text: 'Apakah Anda sering mengonsumsi makanan sumber protein hewani (seperti telur, ayam, ikan, daging)?', reverse: true },
-    { id: 'q10', text: 'Apakah makanan sumber protein hewani tersedia secara rutin di rumah Anda?', reverse: true },
-    { id: 'q11', text: 'Apakah Anda pernah mengalami infeksi cacing dalam 6 bulan terakhir?', reverse: false }
+    { id: 'q7', text: 'Apakah Anda sering minum teh atau kopi setelah makan?', reverse: false },
+    { id: 'q8', text: 'Apakah Anda rutin mengonsumsi suplemen zat besi?', reverse: true },
+    { id: 'q9', text: 'Apakah Anda sering mengonsumsi protein hewani?', reverse: true },
+    { id: 'q10', text: 'Apakah makanan protein hewani tersedia rutin?', reverse: true },
+    { id: 'q11', text: 'Apakah Anda pernah mengalami infeksi cacing?', reverse: false }
   ];
 
-  // --- LOGIC PERHITUNGAN (VALIDASI KEMENKES) ---
-  const calculateNeeds = () => {
-    // Gunakan BB Pra-hamil untuk BMR Ibu Hamil, BB Saat Ini untuk yang lain
-    const baseWeight = category === 'pregnant' 
-        ? parseFloat(formData.prePregnancyWeight) 
-        : parseFloat(formData.weight);
-        
+  const validateInput = () => {
+    const weight = parseFloat(formData.weight || formData.prePregnancyWeight);
     const height = parseFloat(formData.height);
-    const age = parseFloat(formData.age) || 30;
-    
-    // BMR Harris-Benedict
-    let bmr = category === 'child' 
-      ? 66.5 + (13.75 * baseWeight) + (5.003 * height) - (6.75 * age)
-      : 655.1 + (9.563 * baseWeight) + (1.850 * height) - (4.676 * age);
-    
-    let totalCalories = bmr * 1.3; // Faktor Aktivitas Sedang
 
-    // Penambahan Energi AKG 2019
+    if (isNaN(weight) || isNaN(height) || weight <= 0 || height <= 0) {
+      alert("Masukkan data yang valid.");
+      return false;
+    }
+    return true;
+  };
+
+  const calculateNeeds = () => {
+    const baseWeight = category === 'pregnant'
+      ? parseFloat(formData.prePregnancyWeight)
+      : parseFloat(formData.weight);
+
+    const height = parseFloat(formData.height);
+    const age = parseFloat(formData.age) || 10;
+
+    if (!baseWeight || !height) return null;
+
+    let totalCalories = 0;
+
+    if (category === 'child') {
+      totalCalories = baseWeight * 80;
+    } else {
+      const bmr = 655.1 + (9.563 * baseWeight) + (1.850 * height) - (4.676 * age);
+      totalCalories = bmr * 1.3;
+    }
+
     if (category === 'pregnant') {
-        totalCalories += (formData.trimester === '1' ? 180 : 300);
+      totalCalories += (formData.trimester === '1' ? 180 : 300);
     } else if (category === 'breastfeeding') {
-        totalCalories += 330;
+      totalCalories += 330;
     }
 
     return {
-        daily: Math.round(totalCalories),
-        breakfast: Math.round(totalCalories * 0.25),
-        dinner: Math.round(totalCalories * 0.30)
+      daily: Math.round(totalCalories),
+      breakfast: Math.round(totalCalories * 0.25),
+      dinner: Math.round(totalCalories * 0.30)
     };
   };
 
+  const calculateIMT = () => {
+    const weight = category === 'pregnant'
+      ? parseFloat(formData.prePregnancyWeight)
+      : parseFloat(formData.weight);
+
+    const heightCm = parseFloat(formData.height);
+
+    if (!weight || !heightCm) return 0;
+
+    const height = heightCm / 100;
+    return weight / (height * height);
+  };
+
+  const calculateAnemiaRisk = () => {
+    let score = 0;
+    Object.keys(assessment).forEach(key => {
+      const q = questions.find(x => x.id === key);
+      const a = assessment[key];
+      if (a === null) return;
+      score += q.reverse ? (a ? 0 : 1) : (a ? 1 : 0);
+    });
+
+    if (score <= 3) return { risk: false, level: 'Rendah', score, color: 'green' };
+    if (score <= 7) return { risk: true, level: 'Sedang', score, color: 'yellow' };
+    return { risk: true, level: 'Tinggi', score, color: 'red' };
+  };
+
   const generateCombinedMenu = (targetCalories) => {
-    if (!menuDatabase || menuDatabase.length === 0) return null;
+    if (!menuDatabase?.length) return null;
 
-    const carbs = menuDatabase.filter(item => /nasi|kentang|mie/i.test(item.name));
-    const veggies = menuDatabase.filter(item => /sayur|bayam|kangkung|sawi|capcay|wortel|brokoli|buncis|sop/i.test(item.name));
-    const proteins = menuDatabase.filter(item => /ayam|ikan|telur|daging|tahu|tempe|udang|hati/i.test(item.name) && !/nasi|kentang|mie/i.test(item.name));
+    const carbs = menuDatabase.filter(i => /nasi|kentang|mie/i.test(i.name)).slice(0, 10);
+    const veggies = menuDatabase.filter(i => /sayur|bayam|wortel|brokoli/i.test(i.name)).slice(0, 10);
+    const proteins = menuDatabase.filter(i => /ayam|ikan|telur|daging|tahu|tempe/i.test(i.name)).slice(0, 10);
 
-    if (carbs.length === 0 || veggies.length === 0 || proteins.length === 0) return null;
-
-    let bestCombo = null;
-    let smallestDiff = Infinity;
+    let best = null;
+    let diffMin = Infinity;
 
     for (let c of carbs) {
       for (let v of veggies) {
         for (let p of proteins) {
-          const totalCalories = (c.calories || 0) + (v.calories || 0) + (p.calories || 0);
-          const diff = Math.abs(totalCalories - targetCalories);
-
-          if (diff < smallestDiff) {
-            smallestDiff = diff;
-            bestCombo = {
+          const total = (c.calories||0)+(v.calories||0)+(p.calories||0);
+          const diff = Math.abs(total - targetCalories);
+          if (diff < diffMin) {
+            diffMin = diff;
+            best = {
               name: `${c.name} + ${v.name} + ${p.name}`,
               recipe: [c.name, v.name, p.name],
               nutrition: {
-                calories: Math.round(totalCalories),
-                proteins: Math.round((c.proteins || 0) + (v.proteins || 0) + (p.proteins || 0)),
-                fat: Math.round((c.fat || 0) + (v.fat || 0) + (p.fat || 0)),
-                carbohydrate: Math.round((c.carbohydrate || 0) + (v.carbohydrate || 0) + (p.carbohydrate || 0))
+                calories: Math.round(total),
+                proteins: Math.round((c.proteins||0)+(v.proteins||0)+(p.proteins||0)),
+                fat: Math.round((c.fat||0)+(v.fat||0)+(p.fat||0)),
+                carbohydrate: Math.round((c.carbohydrate||0)+(v.carbohydrate||0)+(p.carbohydrate||0))
               }
             };
           }
         }
       }
     }
-    return bestCombo;
+    return best;
   };
 
-  const calculateIMT = () => {
-    // IMT: Gunakan BB Pra-hamil untuk Ibu Hamil
-    const weightToUse = category === 'pregnant' 
-        ? parseFloat(formData.prePregnancyWeight) 
-        : parseFloat(formData.weight);
-    
-    const height = parseFloat(formData.height) / 100;
-    return weightToUse / (height * height);
-  };
+  const handleSubmit = () => {
+    if (!validateInput()) return;
 
-  const getIMTStatus = (imt) => {
-    if (category === 'child') {
-      if (imt < 14) return { status: 'Gizi Kurang', color: 'yellow' };
-      if (imt < 18.5) return { status: 'Gizi Baik', color: 'green' };
-      return { status: 'Gizi Lebih', color: 'orange' };
-    }
-    // Standar Dewasa Kemenkes
-    if (imt < 18.5) return { status: 'Kurus (KEK)', color: 'yellow' };
-    if (imt < 25) return { status: 'Normal', color: 'green' };
-    if (imt < 27) return { status: 'Gemuk', color: 'orange' };
-    return { status: 'Obesitas', color: 'red' };
-  };
+    const needs = calculateNeeds();
+    const imt = calculateIMT();
+    const anemia = calculateAnemiaRisk();
 
-  const calculateAnemiaRisk = () => {
-    let score = 0;
-    Object.keys(assessment).forEach(key => {
-      const question = questions.find(q => q.id === key);
-      const answer = assessment[key];
-      if (answer === null) return;
-      score += question.reverse ? (answer ? 0 : 1) : (answer ? 1 : 0);
+    setRecommendation({
+      imt: imt.toFixed(1),
+      anemia,
+      breakfast: generateCombinedMenu(needs.breakfast),
+      dinner: generateCombinedMenu(needs.dinner),
+      needs
     });
-    if (score <= 3) return { risk: false, level: 'Rendah', score, color: 'green' };
-    if (score <= 7) return { risk: true, level: 'Sedang', score, color: 'yellow' };
-    return { risk: true, level: 'Tinggi', score, color: 'red' };
+
+    setStep(4);
   };
-
-  const handleAssessmentSubmit = () => {
-    const allAnswered = Object.values(assessment).every(val => val !== null);
-    if (!allAnswered) { alert('Mohon jawab semua pertanyaan asesmen'); return; }
-    setLoading(true);
-    
-    setTimeout(() => {
-      const imt = calculateIMT();
-      const needs = calculateNeeds();
-      const breakfastMenu = generateCombinedMenu(needs.breakfast);
-      const dinnerMenu = generateCombinedMenu(needs.dinner);
-      
-      // LOGIC TTD DINAMIS (Anti Ngawur)
-      const riskResult = calculateAnemiaRisk();
-      let ttdAdvice = '';
-      
-      if (category === 'pregnant') {
-        if (riskResult.risk) ttdAdvice = 'Segera Cek Hb ke Dokter (Indikasi Dosis Terapi)';
-        else ttdAdvice = '1 tablet/hari (Min. 90 tablet selama hamil)';
-      } else if (category === 'child') {
-        if (riskResult.risk) ttdAdvice = '1 tablet/minggu + Periksa ke Puskesmas';
-        else ttdAdvice = '1 tablet/minggu (Program Rematri)';
-      } else { // Breastfeeding
-        if (riskResult.risk) ttdAdvice = '1 tablet/hari + Konsultasi Dokter';
-        else ttdAdvice = '1 tablet/hari (Selama masa nifas/42 hari)';
-      }
-
-      setRecommendation({
-        imt: imt.toFixed(1),
-        imtStatus: getIMTStatus(imt),
-        anemiaRisk: riskResult,
-        needs: needs,
-        breakfast: breakfastMenu,
-        dinner: dinnerMenu,
-        ttdFrequency: ttdAdvice,
-        ironRichFoods: ['Hati ayam', 'Daging sapi', 'Ikan kembung', 'Bayam', 'Kacang hijau'],
-        folatRichFoods: ['Bayam', 'Brokoli', 'Kacang merah', 'Jeruk', 'Alpukat'],
-        vitCRichFoods: ['Jeruk', 'Tomat', 'Jambu biji', 'Paprika', 'Strawberry']
-      });
-      setStep(4);
-      setLoading(false);
-    }, 1500);
-  };
-
-  const resetForm = () => {
-    setStep(1);
-    setFormData({ age: '', weight: '', height: '', prePregnancyWeight: '', trimester: '1', breastfeedingAge: '0-6' });
-    setAssessment({ q1: null, q2: null, q3: null, q4: null, q5: null, q6: null, q7: null, q8: null, q9: null, q10: null, q11: null });
-    setRecommendation(null);
-  };
-
-  const currentCategory = categories.find(c => c.id === category);
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8 pb-32 min-h-screen bg-white">
-      <header className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
-          <Shield size={12} fill="currentColor" /> Nutrition Assistant
-        </div>
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
-          Rekomendasi <span className="text-blue-600">Gizi.</span>
-        </h1>
-        <p className="text-slate-500 font-medium">Analisis kebutuhan gizi personal untuk tumbuh kembang optimal.</p>
-      </header>
+    <div className="max-w-2xl mx-auto p-6 space-y-6">
 
       {step === 1 && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-          <p className="text-slate-600 font-medium">Pilih kategori untuk memulai:</p>
-          <div className="grid grid-cols-3 gap-3">
-            {categories.map(cat => {
-              const Icon = cat.icon;
-              const isActive = category === cat.id;
-              const bgColor = cat.color === 'blue' ? 'bg-blue-600 border-blue-600' : cat.color === 'pink' ? 'bg-pink-600 border-pink-600' : 'bg-purple-600 border-purple-600';
-              return (
-                <button key={cat.id} onClick={() => setCategory(cat.id)}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-300 ${isActive ? `${bgColor} text-white shadow-xl scale-105` : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                  <Icon className={`w-6 h-6 mx-auto mb-2 ${isActive ? 'text-white' : cat.color === 'blue' ? 'text-blue-500' : cat.color === 'pink' ? 'text-pink-500' : 'text-purple-500'}`} />
-                  <p className="text-xs font-bold text-center">{cat.label}</p>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-sm text-slate-500 font-medium text-center">{currentCategory.desc}</p>
-          <button onClick={() => setStep(2)} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-bold shadow-2xl shadow-slate-200 flex items-center justify-center gap-3 active:scale-95 transition-all">
-            Lanjutkan <ArrowRight size={20}/>
-          </button>
+        <div>
+          {categories.map(cat => (
+            <button key={cat.id} onClick={() => setCategory(cat.id)}>
+              {cat.label}
+            </button>
+          ))}
+          <button onClick={() => setStep(2)}>Lanjut</button>
         </div>
       )}
 
       {step === 2 && (
-        <form onSubmit={(e) => { e.preventDefault(); setStep(3); }} className="space-y-6 animate-in fade-in duration-500">
-          <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-6">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-lg ${currentCategory.color === 'blue' ? 'bg-blue-600' : currentCategory.color === 'pink' ? 'bg-pink-600' : 'bg-purple-600'}`}>
-                <User size={16} />
-              </div>
-              Data Fisik
-            </h3>
-            
-            {category === 'child' && (
-              <div className="grid grid-cols-3 gap-4">
-                {['age', 'weight', 'height'].map(key => (
-                  <div key={key} className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">{key === 'age' ? 'Usia' : key === 'weight' ? 'BB' : 'TB'}</label>
-                    <input type="number" step="0.1" placeholder={key === 'age' ? 'Thn' : key === 'weight' ? 'Kg' : 'Cm'}
-                      className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none" 
-                      required value={formData[key]} onChange={e => setFormData({...formData, [key]: e.target.value})} />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {category === 'pregnant' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">BB Sblm Hamil</label>
-                    <input type="number" step="0.1" placeholder="Kg" className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 transition-all outline-none" 
-                      required value={formData.prePregnancyWeight} onChange={e => setFormData({...formData, prePregnancyWeight: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Tinggi Badan</label>
-                    <input type="number" step="0.1" placeholder="Cm" className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 transition-all outline-none" 
-                      required value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Trimester</label>
-                  <select className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 transition-all outline-none"
-                    value={formData.trimester} onChange={e => setFormData({...formData, trimester: e.target.value})}>
-                    <option value="1">Trimester 1 (0-12 minggu)</option>
-                    <option value="2">Trimester 2 (13-26 minggu)</option>
-                    <option value="3">Trimester 3 (27-40 minggu)</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {category === 'breastfeeding' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Berat Badan</label>
-                  <input type="number" step="0.1" placeholder="Kg" className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-50 transition-all outline-none" 
-                    required value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Tinggi Badan</label>
-                  <input type="number" step="0.1" placeholder="Cm" className="w-full p-4 bg-slate-50 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-50 transition-all outline-none" 
-                    required value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} />
-                </div>
-              </div>
-            )}
-          </div>
-          <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-bold shadow-2xl shadow-slate-200 flex items-center justify-center gap-3 active:scale-95 transition-all">
-            Lanjut ke Asesmen <ArrowRight size={20}/>
-          </button>
-        </form>
+        <div>
+          <input placeholder="Berat" onChange={e => setFormData({...formData, weight: e.target.value})}/>
+          <input placeholder="Tinggi" onChange={e => setFormData({...formData, height: e.target.value})}/>
+          <button onClick={() => setStep(3)}>Next</button>
+        </div>
       )}
 
       {step === 3 && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-          <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white">
-                <ClipboardList size={20} />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-800 text-lg">Asesmen Risiko Anemia</h3>
-                <p className="text-xs text-slate-500">Jawab semua pertanyaan dengan jujur</p>
-              </div>
+        <div>
+          {questions.map(q => (
+            <div key={q.id}>
+              <p>{q.text}</p>
+              <button onClick={() => setAssessment({...assessment, [q.id]: true})}>Ya</button>
+              <button onClick={() => setAssessment({...assessment, [q.id]: false})}>Tidak</button>
             </div>
-            {questions.map((q, idx) => (
-              <div key={q.id} className="bg-slate-50 rounded-2xl p-5 space-y-3">
-                <p className="text-sm font-medium text-slate-700">
-                  <span className="font-bold text-blue-600">{idx + 1}.</span> {q.text}
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setAssessment({...assessment, [q.id]: true})}
-                    className={`p-3 rounded-xl font-bold text-sm transition-all ${assessment[q.id] === true ? 'bg-blue-600 text-white shadow-lg' : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                    Ya
-                  </button>
-                  <button type="button" onClick={() => setAssessment({...assessment, [q.id]: false})}
-                    className={`p-3 rounded-xl font-bold text-sm transition-all ${assessment[q.id] === false ? 'bg-slate-700 text-white shadow-lg' : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-                    Tidak
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button onClick={handleAssessmentSubmit} disabled={loading}
-            className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-bold shadow-2xl shadow-slate-200 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50">
-            {loading ? <RefreshCw className="animate-spin" /> : <>Lihat Hasil Rekomendasi <ArrowRight size={20}/></>}
-          </button>
+          ))}
+          <button onClick={handleSubmit}>Hasil</button>
         </div>
       )}
 
       {step === 4 && recommendation && (
-        <div className="space-y-6 animate-in slide-in-from-bottom-10 duration-700">
-          
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
-            <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2">
-              <Calculator className="text-blue-600" size={24} />
-              Status Gizi & Risiko Anemia
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-50 rounded-2xl p-6 text-center">
-                <p className="text-xs text-slate-500 font-bold uppercase mb-2">IMT/U</p>
-                <p className="text-4xl font-black text-blue-600">{recommendation.imt}</p>
-                <div className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full ${recommendation.imtStatus.color === 'green' ? 'bg-green-100 text-green-700' : recommendation.imtStatus.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : recommendation.imtStatus.color === 'orange' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
-                  {recommendation.imtStatus.status === 'Gizi Baik' || recommendation.imtStatus.status === 'Normal' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                  <span className="text-xs font-bold">{recommendation.imtStatus.status}</span>
-                </div>
-              </div>
-              <div className={`rounded-2xl p-6 text-center ${recommendation.anemiaRisk.color === 'green' ? 'bg-green-50' : recommendation.anemiaRisk.color === 'yellow' ? 'bg-yellow-50' : 'bg-red-50'}`}>
-                <p className="text-xs text-slate-500 font-bold uppercase mb-2">Risiko Anemia</p>
-                <p className={`text-2xl font-black mb-2 ${recommendation.anemiaRisk.color === 'green' ? 'text-green-600' : recommendation.anemiaRisk.color === 'yellow' ? 'text-yellow-600' : 'text-red-600'}`}>{recommendation.anemiaRisk.level}</p>
-                <p className="text-xs text-slate-500 mb-2">Skor: {recommendation.anemiaRisk.score}/11</p>
-                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${recommendation.anemiaRisk.risk ? (recommendation.anemiaRisk.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700') : 'bg-green-100 text-green-700'}`}>
-                  {recommendation.anemiaRisk.risk ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
-                  <span className="text-xs font-bold">{recommendation.anemiaRisk.risk ? 'Berisiko' : 'Tidak Berisiko'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-[2.5rem] p-8 border border-orange-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white"><Flame size={24} /></div>
-              <div>
-                <h3 className="font-bold text-slate-800 text-xl">Rekomendasi Sarapan</h3>
-                {recommendation.breakfast ? (
-                    <p className="text-sm text-slate-600 font-bold">{recommendation.breakfast.name}</p>
-                ) : (
-                    <p className="text-sm text-red-600 font-bold">Data Menu Tidak Ditemukan</p>
-                )}
-              </div>
-            </div>
-            
-            {recommendation.breakfast && (
-                <div className="space-y-4">
-                <div className="bg-white rounded-2xl p-5">
-                    <h4 className="font-bold text-slate-700 mb-3 text-sm">Komponen Bahan:</h4>
-                    <ul className="space-y-2">
-                    {recommendation.breakfast.recipe?.map((item, i) => (
-                        <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
-                        <span className="text-orange-500 font-bold">•</span>{item}
-                        </li>
-                    ))}
-                    </ul>
-                </div>
-                
-                <div className="bg-white rounded-2xl p-5">
-                    <h4 className="font-bold text-slate-700 mb-3 text-sm">Informasi Gizi (per porsi):</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                    <div className="text-center p-3 bg-orange-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Kalori</p>
-                        <p className="text-lg font-bold text-orange-600">{recommendation.breakfast.nutrition.calories} kcal</p>
-                    </div>
-                    <div className="text-center p-3 bg-orange-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Karbohidrat</p>
-                        <p className="text-lg font-bold text-orange-600">{recommendation.breakfast.nutrition.carbohydrate}g</p>
-                    </div>
-                    <div className="text-center p-3 bg-orange-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Protein</p>
-                        <p className="text-lg font-bold text-orange-600">{recommendation.breakfast.nutrition.proteins}g</p>
-                    </div>
-                    <div className="text-center p-3 bg-orange-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Lemak</p>
-                        <p className="text-lg font-bold text-orange-600">{recommendation.breakfast.nutrition.fat}g</p>
-                    </div>
-                    </div>
-                </div>
-                </div>
-            )}
-          </div>
-
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[2.5rem] p-8 border border-blue-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-white"><Apple size={24} /></div>
-              <div>
-                <h3 className="font-bold text-slate-800 text-xl">Rekomendasi Makan Malam</h3>
-                {recommendation.dinner ? (
-                    <p className="text-sm text-slate-600 font-bold">{recommendation.dinner.name}</p>
-                ) : (
-                    <p className="text-sm text-red-600 font-bold">Data Menu Tidak Ditemukan</p>
-                )}
-              </div>
-            </div>
-
-            {recommendation.dinner && (
-                <div className="space-y-4">
-                <div className="bg-white rounded-2xl p-5">
-                    <h4 className="font-bold text-slate-700 mb-3 text-sm">Komponen Bahan:</h4>
-                    <ul className="space-y-2">
-                    {recommendation.dinner.recipe?.map((item, i) => (
-                        <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
-                        <span className="text-blue-500 font-bold">•</span>{item}
-                        </li>
-                    ))}
-                    </ul>
-                </div>
-
-                <div className="bg-white rounded-2xl p-5">
-                    <h4 className="font-bold text-slate-700 mb-3 text-sm">Informasi Gizi (per porsi):</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                    <div className="text-center p-3 bg-blue-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Kalori</p>
-                        <p className="text-lg font-bold text-blue-600">{recommendation.dinner.nutrition.calories} kcal</p>
-                    </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Karbohidrat</p>
-                        <p className="text-lg font-bold text-blue-600">{recommendation.dinner.nutrition.carbohydrate}g</p>
-                    </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Protein</p>
-                        <p className="text-lg font-bold text-blue-600">{recommendation.dinner.nutrition.proteins}g</p>
-                    </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-xl">
-                        <p className="text-xs text-slate-500">Lemak</p>
-                        <p className="text-lg font-bold text-blue-600">{recommendation.dinner.nutrition.fat}g</p>
-                    </div>
-                    </div>
-                </div>
-                </div>
-            )}
-          </div>
-
-          <div className="bg-red-50 rounded-[2.5rem] p-8 border border-red-100 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-              <Heart className="text-red-600" size={20} />
-              Info Penting (Cegah Anemia)
-            </h3>
-            <div className="bg-white rounded-2xl p-5 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="text-red-600" size={18} />
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-slate-800">Konsumsi Tablet Tambah Darah (TTD)</p>
-                  <p className="text-sm text-slate-600 mt-1">{recommendation.ttdFrequency}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-5 space-y-3">
-              <h4 className="font-bold text-sm text-slate-800 mb-2">Perbanyak konsumsi makanan kaya:</h4>
-              <div>
-                <p className="text-xs font-bold text-red-600 uppercase mb-2">Zat Besi</p>
-                <div className="flex flex-wrap gap-2">
-                  {recommendation.ironRichFoods.map((food, i) => (
-                    <span key={i} className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">{food}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-orange-600 uppercase mb-2">Folat</p>
-                <div className="flex flex-wrap gap-2">
-                  {recommendation.folatRichFoods.map((food, i) => (
-                    <span key={i} className="px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-xs font-medium">{food}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-yellow-600 uppercase mb-2">Vitamin C</p>
-                <div className="flex flex-wrap gap-2">
-                  {recommendation.vitCRichFoods.map((food, i) => (
-                    <span key={i} className="px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-xs font-medium">{food}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button onClick={resetForm} className="w-full py-6 text-slate-400 font-bold text-xs hover:text-blue-600 transition-colors uppercase tracking-[0.3em]">
-            Hitung Ulang Analisis
-          </button>
+        <div>
+          <p>IMT: {recommendation.imt}</p>
+          <p>Anemia: {recommendation.anemia.level}</p>
+          <p>Kalori: {recommendation.needs.daily}</p>
         </div>
       )}
 
-      <div className="bg-blue-50/50 p-8 rounded-[3rem] border border-blue-100/50 flex gap-5 backdrop-blur-sm">
-        <Info className="text-blue-600 shrink-0" size={28} />
-        <p className="text-[12px] text-slate-600 leading-relaxed font-medium">
-          Rekomendasi ini disusun berdasarkan <strong className="text-blue-900">Status Gizi (IMT/U)</strong> dan 
-          <strong className="text-blue-900"> Asesmen Risiko Anemia</strong> untuk mendukung tumbuh kembang optimal.
-        </p>
-      </div>
+      <p className="text-xs text-gray-400 text-center">
+        Hasil ini bersifat estimasi dan tidak menggantikan tenaga kesehatan.
+      </p>
+
     </div>
   );
 }
