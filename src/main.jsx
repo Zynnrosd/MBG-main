@@ -18,7 +18,6 @@ function AppRoot() {
   const [showSplash, setShowSplash] = useState(true);
   const [currentPage, setCurrentPage] = useState('recommendation');
   
-  // Auth States
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPersagi, setIsPersagi] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
@@ -34,7 +33,6 @@ function AppRoot() {
       const user = await getCurrentUser();
       
       if (user) {
-        // 1. Cek Tabel Admins
         const { data: adminData } = await supabase
           .from('admins')
           .select('*')
@@ -42,11 +40,9 @@ function AppRoot() {
           .maybeSingle();
 
         if (adminData) {
-          // Gabungkan data auth + data tabel admin
           setAdminUser({ ...user, id: adminData.id }); 
           setIsAdmin(true);
         } else {
-          // 2. Cek Tabel Doctors (PENTING: Ambil ID dari sini agar chat jalan)
           const { data: doctorData } = await supabase
             .from('doctors')
             .select('*')
@@ -54,7 +50,6 @@ function AppRoot() {
             .maybeSingle();
 
           if (doctorData) {
-            // Gabungkan data auth + data tabel doctors
             setPersagiUser({ ...user, id: doctorData.id, name: doctorData.name });
             setIsPersagi(true);
           }
@@ -70,7 +65,6 @@ function AppRoot() {
   const handleSplashComplete = () => setShowSplash(false);
   const handleNavigation = (page) => setCurrentPage(page);
 
-  // Handler Login Pusat (Menerima profile dan role dari LoginPage)
   const handleLoginSuccess = (userProfile, role) => {
     if (role === 'admin') {
       setAdminUser(userProfile);
@@ -93,7 +87,6 @@ function AppRoot() {
     window.location.href = '/';
   };
 
-  // Komponen Loading yang Estetik
   const LoadingScreen = () => (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
       <div className="text-center space-y-6">
@@ -106,25 +99,20 @@ function AppRoot() {
     </div>
   );
 
-  // --- ROUTING LOGIC ---
   const path = window.location.pathname;
 
-  // 1. PERSAGI Dashboard Route
   if (path.includes('/persagi')) {
     if (checkingAuth) return <LoadingScreen />;
-    // Jika belum login, tampilkan LoginPage umum
     if (!isPersagi) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
     return <PersagiDashboard onLogout={handleLogout} user={persagiUser} />;
   }
 
-  // 2. ADMIN Dashboard Route
   if (path.includes('/admin')) {
     if (checkingAuth) return <LoadingScreen />;
     if (!isAdmin) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
     return <Dashboard onLogout={handleLogout} user={adminUser} />;
   }
 
-  // 3. User Facing App
   if (showSplash) {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
@@ -135,9 +123,7 @@ function AppRoot() {
       case 'schedule': return <SchedulePage />;
       case 'consultation': return <ConsultationPage />;
       case 'education': return <EducationPage />;
-      case 'login': 
-        // Halaman login umum (biasanya untuk admin entry point)
-        return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+      case 'login': return <LoginPage onLoginSuccess={handleLoginSuccess} />;
       default: return <RecommendationPage />;
     }
   };
