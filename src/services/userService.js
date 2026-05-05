@@ -6,7 +6,6 @@ const CHILD_DATA_KEY = 'mbg_child_data';
  */
 export const saveChildData = (data) => {
   try {
-    // Hitung target AKG sederhana
     const targetCalories = 1000 + (parseInt(data.age) * 100);
     const targetProtein = (parseFloat(data.weight) * 1.2).toFixed(1);
 
@@ -15,6 +14,7 @@ export const saveChildData = (data) => {
       akg: { targetCalories, targetProtein },
       updatedAt: new Date().toISOString()
     };
+
     localStorage.setItem(CHILD_DATA_KEY, JSON.stringify(profileData));
     return { success: true, data: profileData };
   } catch (error) {
